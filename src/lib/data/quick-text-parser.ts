@@ -1,4 +1,4 @@
-export type ParsedQuickEntryUnit = "g" | "kg" | "pcs";
+export type ParsedQuickEntryUnit = "g" | "kg" | "ml" | "pcs";
 
 export type ParsedQuickEntryItem = {
   raw: string;
@@ -15,18 +15,25 @@ const UNIT_ALIASES: Record<string, ParsedQuickEntryUnit> = {
   граммов: "g",
   kg: "kg",
   кг: "kg",
+  мл: "ml",
+  ml: "ml",
+  миллилитр: "ml",
+  миллилитра: "ml",
+  миллилитров: "ml",
   шт: "pcs",
   штука: "pcs",
   штуки: "pcs",
   штук: "pcs",
 };
 
-const PART_REGEX =
+const LEADING_AMOUNT_REGEX =
   /^\s*(\d+(?:[.,]\d+)?)\s*(г|гр|грамм|грамма|граммов|кг|kg|шт|штука|штуки|штук)?\s+(.+?)\s*$/i;
+const TRAILING_AMOUNT_REGEX =
+  /^\s*(.+?)\s+(\d+(?:[.,]\d+)?)\s*(г|гр|грамм|грамма|граммов|кг|kg|мл|ml|миллилитр|миллилитра|миллилитров|шт|штука|штуки|штук)\s*$/i;
 
 export function parseQuickEntryText(input: string): ParsedQuickEntryItem[] {
   return input
-    .split("+")
+    .split(/(?:\+|,|\s+и\s+)/i)
     .map((part) => part.trim())
     .filter(Boolean)
     .map(parsePart)
@@ -34,18 +41,21 @@ export function parseQuickEntryText(input: string): ParsedQuickEntryItem[] {
 }
 
 function parsePart(part: string): ParsedQuickEntryItem | null {
-  const match = part.match(PART_REGEX);
-  if (!match) {
-    return null;
-  }
+  const leadingMatch = part.match(LEADING_AMOUNT_REGEX);
+  const trailingMatch = part.match(TRAILING_AMOUNT_REGEX);
+  const quantityValue = leadingMatch?.[1] ?? trailingMatch?.[2];
+  const unitValue = leadingMatch?.[2] ?? trailingMatch?.[3] ?? "";
+  const nameValue = leadingMatch?.[3] ?? trailingMatch?.[1];
 
-  const quantityRaw = Number(match[1].replace(",", "."));
+  if (!quantityValue || !nameValue) return null;
+
+  const quantityRaw = Number(quantityValue.replace(",", "."));
   if (!Number.isFinite(quantityRaw) || quantityRaw <= 0) {
     return null;
   }
 
-  const unitRaw = (match[2] ?? "").toLowerCase();
-  const productName = match[3].trim();
+  const unitRaw = unitValue.toLowerCase();
+  const productName = nameValue.trim();
   if (!productName) {
     return null;
   }
@@ -71,6 +81,7 @@ function inferUnitFromName(name: string): ParsedQuickEntryUnit {
 
 export function unitLabel(unit: ParsedQuickEntryUnit): string {
   if (unit === "kg") return "кг";
+  if (unit === "ml") return "мл";
   if (unit === "pcs") return "шт";
   return "г";
 }

@@ -12,12 +12,14 @@ import {
   recipeIngredientRepo,
   recipeRepo,
 } from "@/lib/data";
+import { createSpeechProvider } from "@/lib/speech";
 import type { DayLog, Food, MealEntry, ParsedQuickEntryItem, RecentItem, Recipe, RecipeIngredient } from "@/lib/data";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type EntryType = "food" | "recipe";
+type VoiceState = "idle" | "listening" | "processing" | "parsed" | "error" | "unavailable";
 
 function nowISO(): string {
   return new Date().toISOString();
@@ -46,6 +48,7 @@ function formatNumber(value: number): string {
 
 export default function AddEntryPage() {
   const router = useRouter();
+  const speechProvider = useMemo(() => createSpeechProvider(), []);
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [entryType, setEntryType] = useState<EntryType>("food");
@@ -61,11 +64,15 @@ export default function AddEntryPage() {
     Array<{
       id: string;
       parsed: ParsedQuickEntryItem;
+      sourceType: "food" | "recipe";
       sourceId: string;
       weightInput: string;
+      confidence: number;
     }>
   >([]);
   const [quickMessage, setQuickMessage] = useState("");
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [voiceText, setVoiceText] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -190,6 +197,7 @@ export default function AddEntryPage() {
 
   function defaultWeightFromParsed(parsed: ParsedQuickEntryItem): number {
     if (parsed.unit === "kg") return parsed.quantity * 1000;
+    if (parsed.unit === "ml") return parsed.quantity;
     if (parsed.unit === "g") return parsed.quantity;
 
     const normalized = normalizeName(parsed.productName);
@@ -197,8 +205,51 @@ export default function AddEntryPage() {
     return parsed.quantity * gramPerPiece;
   }
 
-  function parseQuickTextToDraft() {
-    const parsedItems = parseQuickEntryText(quickInput);
+  function scoreNameMatch(source: string, target: string): number {
+    const a = normalizeName(source);
+    const b = normalizeName(target);
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    if (a.includes(b) || b.includes(a)) return 0.82;
+
+    const sourceTokens = a.split(" ");
+    const targetTokens = b.split(" ");
+    const overlap = sourceTokens.filter((token) => targetTokens.includes(token)).length;
+    const tokenScore = overlap / Math.max(sourceTokens.length, targetTokens.length);
+    return Math.max(0, Math.min(0.79, tokenScore));
+  }
+
+  function pickBestDraftMatch(parsed: ParsedQuickEntryItem): { sourceType: "food" | "recipe"; sourceId: string; confidence: number } {
+    const localFoods = foods.filter((food) => food.source === "custom");
+    const localRecipes = recipes;
+    const importedFoods = foods.filter((food) => food.source === "imported");
+
+    const bestLocalFood = localFoods
+      .map((food) => ({ id: food.id, confidence: scoreNameMatch(parsed.productName, food.name), type: "food" as const }))
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    if (bestLocalFood && bestLocalFood.confidence >= 0.75) {
+      return { sourceType: "food", sourceId: bestLocalFood.id, confidence: bestLocalFood.confidence };
+    }
+
+    const bestRecipe = localRecipes
+      .map((recipe) => ({ id: recipe.id, confidence: scoreNameMatch(parsed.productName, recipe.name), type: "recipe" as const }))
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    if (bestRecipe && bestRecipe.confidence >= 0.72) {
+      return { sourceType: "recipe", sourceId: bestRecipe.id, confidence: bestRecipe.confidence };
+    }
+
+    const bestImported = importedFoods
+      .map((food) => ({ id: food.id, confidence: scoreNameMatch(parsed.productName, food.name), type: "food" as const }))
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    if (bestImported && bestImported.confidence >= 0.7) {
+      return { sourceType: "food", sourceId: bestImported.id, confidence: bestImported.confidence };
+    }
+
+    return { sourceType: "food", sourceId: "", confidence: 0 };
+  }
+
+  function parseQuickTextToDraft(inputText?: string) {
+    const parsedItems = parseQuickEntryText(inputText ?? quickInput);
     if (parsedItems.length === 0) {
       setQuickDraft([]);
       setQuickMessage("Не удалось разобрать строку. Пример: 60 г овсянки + 30 г протеина");
@@ -206,17 +257,15 @@ export default function AddEntryPage() {
     }
 
     const draft = parsedItems.map((parsed) => {
-      const normalizedParsedName = normalizeName(parsed.productName);
-      const matchedFood =
-        foods.find((food) => normalizeName(food.name) === normalizedParsedName) ??
-        foods.find((food) => normalizeName(food.name).includes(normalizedParsedName)) ??
-        foods.find((food) => normalizedParsedName.includes(normalizeName(food.name)));
+      const match = pickBestDraftMatch(parsed);
 
       return {
         id: makeDraftId("draft"),
         parsed,
-        sourceId: matchedFood?.id ?? "",
+        sourceType: match.sourceType,
+        sourceId: match.sourceId,
         weightInput: String(defaultWeightFromParsed(parsed)),
+        confidence: match.confidence,
       };
     });
 
@@ -244,6 +293,10 @@ export default function AddEntryPage() {
         date,
         dayType: "normal",
         activeKcal: 0,
+        activitySource: "manual",
+        healthSyncStatus: "idle",
+        manualActivityOverride: false,
+        healthPermissionsState: "unknown",
         createdAt: timestamp,
         updatedAt: timestamp,
       } satisfies DayLog);
@@ -259,7 +312,7 @@ export default function AddEntryPage() {
         id: makeId("meal"),
         dayLogId: dayLog.id,
         mealType: "snack",
-        sourceType: "food",
+        sourceType: draftItem.sourceType,
         sourceId: draftItem.sourceId,
         amountG: weightG,
         consumedAt: timestamp,
@@ -269,11 +322,11 @@ export default function AddEntryPage() {
 
       await mealEntryRepo.upsert(mealEntry);
 
-      const recentId = `food_${draftItem.sourceId}`;
+      const recentId = `${draftItem.sourceType}_${draftItem.sourceId}`;
       const existingRecent = recentItems.find((item) => item.id === recentId);
       const nextRecent: RecentItem = {
         id: recentId,
-        itemType: "food",
+        itemType: draftItem.sourceType,
         itemId: draftItem.sourceId,
         lastUsedAt: timestamp,
         useCount: (existingRecent?.useCount ?? 0) + 1,
@@ -287,6 +340,34 @@ export default function AddEntryPage() {
     setQuickDraft([]);
     setQuickInput("");
     router.push("/");
+  }
+
+  async function startVoiceInput() {
+    if (speechProvider.getAvailability() !== "available") {
+      setVoiceState("unavailable");
+      setQuickMessage("Голосовой ввод недоступен в этом браузере. Используй обычный текстовый ввод.");
+      return;
+    }
+
+    try {
+      setVoiceState("listening");
+      const transcription = await speechProvider.listenOnce("ru-RU");
+      setVoiceText(transcription.text);
+      setQuickInput(transcription.text);
+      setVoiceState("processing");
+      const parsedItems = parseQuickEntryText(transcription.text);
+      if (parsedItems.length === 0) {
+        setVoiceState("error");
+        setQuickMessage("Не удалось распознать структуру приема пищи. Поправь текст вручную.");
+        return;
+      }
+
+      parseQuickTextToDraft(transcription.text);
+      setVoiceState("parsed");
+    } catch {
+      setVoiceState("error");
+      setQuickMessage("Ошибка голосового ввода. Попробуй еще раз.");
+    }
   }
 
   async function saveEntry() {
@@ -304,6 +385,10 @@ export default function AddEntryPage() {
         date,
         dayType: "normal",
         activeKcal: 0,
+        activitySource: "manual",
+        healthSyncStatus: "idle",
+        manualActivityOverride: false,
+        healthPermissionsState: "unknown",
         createdAt: timestamp,
         updatedAt: timestamp,
       } satisfies DayLog);
@@ -354,13 +439,35 @@ export default function AddEntryPage() {
 
       <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
         <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Быстрый текстовый ввод (v1, локально)</p>
+        <button
+          type="button"
+          onClick={startVoiceInput}
+          className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold"
+        >
+          🎤 Голосовой ввод
+        </button>
+        <p className="text-xs text-neutral-600">
+          Состояние:{" "}
+          {voiceState === "idle"
+            ? "ожидание"
+            : voiceState === "listening"
+              ? "слушаю"
+              : voiceState === "processing"
+                ? "обработка"
+                : voiceState === "parsed"
+                  ? "черновик готов"
+                  : voiceState === "unavailable"
+                    ? "недоступно"
+                    : "ошибка"}
+        </p>
+        {voiceText ? <p className="text-xs text-neutral-700">Распознано: {voiceText}</p> : null}
         <textarea
           value={quickInput}
           onChange={(event) => setQuickInput(event.target.value)}
           placeholder="Пример: 60 г овсянки + 30 г протеина"
           className="min-h-20 w-full rounded-lg border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-700"
         />
-        <button type="button" onClick={parseQuickTextToDraft} className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold">
+        <button type="button" onClick={() => parseQuickTextToDraft()} className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold">
           Разобрать в draft
         </button>
 
@@ -372,6 +479,39 @@ export default function AddEntryPage() {
                 <p className="mb-1 text-xs text-neutral-500">
                   {index + 1}. {item.parsed.quantity} {unitLabel(item.parsed.unit)} {item.parsed.productName}
                 </p>
+                <p className="mb-1 text-xs text-neutral-500">Confidence: {(item.confidence * 100).toFixed(0)}%</p>
+                <div className="mb-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuickDraft((prev) =>
+                        prev.map((draft) =>
+                          draft.id === item.id ? { ...draft, sourceType: "food", sourceId: "" } : draft,
+                        ),
+                      )
+                    }
+                    className={`h-9 rounded-lg text-xs font-semibold ${
+                      item.sourceType === "food" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+                    }`}
+                  >
+                    Продукт
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuickDraft((prev) =>
+                        prev.map((draft) =>
+                          draft.id === item.id ? { ...draft, sourceType: "recipe", sourceId: "" } : draft,
+                        ),
+                      )
+                    }
+                    className={`h-9 rounded-lg text-xs font-semibold ${
+                      item.sourceType === "recipe" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+                    }`}
+                  >
+                    Рецепт
+                  </button>
+                </div>
                 <select
                   value={item.sourceId}
                   onChange={(event) =>
@@ -381,10 +521,10 @@ export default function AddEntryPage() {
                   }
                   className="mb-2 h-10 w-full rounded-lg border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-700"
                 >
-                  <option value="">Выбери продукт</option>
-                  {foods.map((food) => (
-                    <option key={food.id} value={food.id}>
-                      {food.name}
+                  <option value="">Выбери {item.sourceType === "food" ? "продукт" : "рецепт"}</option>
+                  {(item.sourceType === "food" ? foods : recipes).map((entity) => (
+                    <option key={entity.id} value={entity.id}>
+                      {entity.name}
                     </option>
                   ))}
                 </select>

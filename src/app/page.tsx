@@ -13,8 +13,9 @@ import {
   recipeRepo,
 } from "@/lib/data";
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
+import { createHealthProvider } from "@/lib/health";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -50,7 +51,9 @@ type EntryWithNutrients = {
 };
 
 export default function Home() {
+  const healthProvider = useMemo(() => createHealthProvider(), []);
   const [isLoading, setIsLoading] = useState(true);
+  const [isHealthSyncing, setIsHealthSyncing] = useState(false);
   const [todayLog, setTodayLog] = useState<DayLog | null>(null);
   const [targets, setTargets] = useState<DayTarget[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
@@ -89,6 +92,10 @@ export default function Home() {
           date: todayDate,
           dayType: "normal",
           activeKcal: 0,
+          activitySource: "manual",
+          healthSyncStatus: "idle",
+          manualActivityOverride: false,
+          healthPermissionsState: "unknown",
           createdAt: currentTime,
           updatedAt: currentTime,
         } satisfies DayLog);
@@ -152,6 +159,114 @@ export default function Home() {
     return calculateRemainingToDayTarget(dayTotals.consumed, currentTarget);
   }, [dayTotals, currentTarget]);
 
+  const syncHealthActiveCalories = useCallback(async (log: DayLog, requestPermission: boolean) => {
+
+    setIsHealthSyncing(true);
+
+    const available = await healthProvider.isAvailable();
+    if (!available) {
+      const updated: DayLog = {
+        ...log,
+        healthSyncStatus: "unavailable",
+        healthPermissionsState: "unavailable",
+        updatedAt: nowISO(),
+      };
+      setTodayLog(updated);
+      await dayLogRepo.upsert(updated);
+      setIsHealthSyncing(false);
+      return;
+    }
+
+    let permissionsState = await healthProvider.getPermissionsState();
+    if (requestPermission && permissionsState !== "granted") {
+      permissionsState = await healthProvider.requestPermissions();
+    }
+
+    if (permissionsState !== "granted") {
+      const updated: DayLog = {
+        ...log,
+        healthSyncStatus: "error",
+        healthPermissionsState: permissionsState,
+        updatedAt: nowISO(),
+      };
+      setTodayLog(updated);
+      await dayLogRepo.upsert(updated);
+      setIsHealthSyncing(false);
+      return;
+    }
+
+    try {
+      const healthData = await healthProvider.getTodayActiveCalories();
+      const merged: DayLog = {
+        ...log,
+        activeKcal: log.manualActivityOverride ? log.activeKcal : healthData.activeKcal,
+        healthSyncedActiveKcal: healthData.activeKcal,
+        activitySource: log.manualActivityOverride ? "manual" : "apple_health",
+        lastActivitySyncAt: healthData.syncedAt,
+        healthPermissionsState: healthData.permissionsState,
+        healthSyncStatus: "success",
+        updatedAt: nowISO(),
+      };
+
+      setTodayLog(merged);
+      await dayLogRepo.upsert(merged);
+    } catch {
+      const updated: DayLog = {
+        ...log,
+        healthSyncStatus: "error",
+        updatedAt: nowISO(),
+      };
+      setTodayLog(updated);
+      await dayLogRepo.upsert(updated);
+    } finally {
+      setIsHealthSyncing(false);
+    }
+  }, [healthProvider]);
+
+  useEffect(() => {
+    if (!todayLog) return;
+
+    const initialSyncId = window.setTimeout(() => {
+      syncHealthActiveCalories(todayLog, false).catch((error: unknown) => {
+        console.error("Health sync init failed", error);
+      });
+    }, 0);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        syncHealthActiveCalories(todayLog, false).catch((error: unknown) => {
+          console.error("Health sync on visibility failed", error);
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+
+    let removeCapacitorListener: (() => void) | null = null;
+    import("@capacitor/app")
+      .then(({ App }) =>
+        App.addListener("resume", () => {
+          syncHealthActiveCalories(todayLog, false).catch((error: unknown) => {
+            console.error("Health sync on resume failed", error);
+          });
+        }),
+      )
+      .then((listener) => {
+        removeCapacitorListener = () => listener.remove();
+      })
+      .catch(() => {
+        removeCapacitorListener = null;
+      });
+
+    return () => {
+      window.clearTimeout(initialSyncId);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (removeCapacitorListener) {
+        removeCapacitorListener();
+      }
+    };
+  }, [todayLog, syncHealthActiveCalories]);
+
   const entriesWithNutrients = useMemo<EntryWithNutrients[]>(() => {
     return entries.map((entry) => {
       if (entry.sourceType === "food") {
@@ -199,7 +314,13 @@ export default function Home() {
   async function updateActiveKcal(value: number) {
     if (!todayLog) return;
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-    const updated: DayLog = { ...todayLog, activeKcal: safeValue, updatedAt: nowISO() };
+    const updated: DayLog = {
+      ...todayLog,
+      activeKcal: safeValue,
+      activitySource: "manual",
+      manualActivityOverride: true,
+      updatedAt: nowISO(),
+    };
     setTodayLog(updated);
     await dayLogRepo.upsert(updated);
   }
@@ -290,6 +411,21 @@ export default function Home() {
           onChange={(event) => updateActiveKcal(Number(event.target.value))}
           className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
         />
+        <div className="mt-2 space-y-1 text-xs text-neutral-600">
+          <p>Источник: {todayLog.activitySource === "apple_health" ? "apple health" : "manual"}</p>
+          <p>Статус синка: {todayLog.healthSyncStatus ?? "idle"}</p>
+          <p>Разрешение: {todayLog.healthPermissionsState ?? "unknown"}</p>
+          <p>Синхронизировано: {todayLog.lastActivitySyncAt ? new Date(todayLog.lastActivitySyncAt).toLocaleString("ru-RU") : "—"}</p>
+          {todayLog.manualActivityOverride ? <p className="text-amber-700">Включен ручной override активных ккал.</p> : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => syncHealthActiveCalories(todayLog, true)}
+          disabled={isHealthSyncing}
+          className="mt-2 h-10 w-full rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-800 disabled:opacity-40"
+        >
+          {isHealthSyncing ? "Синхронизация..." : "Обновить из Apple Health"}
+        </button>
       </div>
 
       <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
@@ -300,6 +436,29 @@ export default function Home() {
           <Stat label="Жиры" value={dayTotals?.consumed.fat ?? 0} unit="г" />
           <Stat label="Углеводы" value={dayTotals?.consumed.carbs ?? 0} unit="г" />
         </div>
+        {currentTarget && dayTotals ? (
+          <div className="mt-3 space-y-2">
+            <ProgressRow
+              label="Калории"
+              value={dayTotals.consumed.kcal}
+              target={(currentTarget.kcalMin + currentTarget.kcalMax) / 2}
+              unit="ккал"
+            />
+            <ProgressRow label="Белки" value={dayTotals.consumed.protein} target={currentTarget.proteinTarget} unit="г" />
+            <ProgressRow
+              label="Жиры"
+              value={dayTotals.consumed.fat}
+              target={(currentTarget.fatMin + currentTarget.fatMax) / 2}
+              unit="г"
+            />
+            <ProgressRow
+              label="Углеводы"
+              value={dayTotals.consumed.carbs}
+              target={(currentTarget.carbsMin + currentTarget.carbsMax) / 2}
+              unit="г"
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-neutral-200 p-3">
@@ -451,6 +610,25 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-3">
       <p className="text-neutral-600">{label}</p>
       <p className="font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function ProgressRow({ label, value, target, unit }: { label: string; value: number; target: number; unit: string }) {
+  const safeTarget = target > 0 ? target : 1;
+  const ratio = Math.max(0, Math.min(1, value / safeTarget));
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs text-neutral-600">
+        <span>{label}</span>
+        <span>
+          {formatNumber(value)} / {formatNumber(target)} {unit}
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded bg-neutral-200">
+        <div className="h-full rounded bg-neutral-900" style={{ width: `${ratio * 100}%` }} />
+      </div>
     </div>
   );
 }

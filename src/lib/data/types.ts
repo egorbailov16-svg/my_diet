@@ -5,6 +5,9 @@ export type ISODateTime = string;
 export type DayType = "normal" | "strength";
 export type FoodSource = "custom" | "imported" | "external";
 export type RecentItemType = "food" | "recipe";
+export type ActivitySource = "manual" | "apple_health";
+export type HealthSyncStatus = "idle" | "syncing" | "success" | "error" | "unavailable";
+export type HealthPermissionsState = "unknown" | "granted" | "denied" | "unavailable";
 
 export type NutrientsPer100g = {
   kcal: number;
@@ -48,6 +51,12 @@ export type DayLog = {
   date: ISODate;
   dayType: DayType;
   activeKcal: number;
+  activitySource?: ActivitySource;
+  lastActivitySyncAt?: ISODateTime;
+  healthSyncStatus?: HealthSyncStatus;
+  manualActivityOverride?: boolean;
+  healthPermissionsState?: HealthPermissionsState;
+  healthSyncedActiveKcal?: number;
   notes?: string;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
