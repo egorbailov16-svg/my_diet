@@ -2,6 +2,7 @@ import type { DBSchema } from "@/lib/data/types";
 
 const DB_NAME = "my-diet-db";
 const DB_VERSION = 1;
+const OPEN_DB_TIMEOUT_MS = 4000;
 
 type StoreName = keyof DBSchema;
 
@@ -34,6 +35,9 @@ export function openAppDB(): Promise<IDBDatabase> {
 
   openPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error("IndexedDB open timed out"));
+    }, OPEN_DB_TIMEOUT_MS);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -45,11 +49,24 @@ export function openAppDB(): Promise<IDBDatabase> {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB"));
+    request.onsuccess = () => {
+      window.clearTimeout(timeoutId);
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      window.clearTimeout(timeoutId);
+      reject(request.error ?? new Error("Failed to open IndexedDB"));
+    };
+    request.onblocked = () => {
+      window.clearTimeout(timeoutId);
+      reject(new Error("IndexedDB open blocked"));
+    };
   });
 
-  return openPromise;
+  return openPromise.catch((error) => {
+    openPromise = null;
+    throw error;
+  });
 }
 
 function runRequest<T>(request: IDBRequest<T>): Promise<T> {

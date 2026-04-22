@@ -44,6 +44,24 @@ function parseWeight(value: string): number {
   return Math.round(parsed * 100) / 100;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(`Timed out after ${ms}ms`));
+    }, ms);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
 type EntryWithNutrients = {
   entry: MealEntry;
   title: string;
@@ -81,42 +99,58 @@ export default function Home() {
 
   useEffect(() => {
     async function loadTodayData() {
-      const [dayLog, dayTargets, foodsList, recipesList, recipeIngredients, mealEntries] = await Promise.all([
-        dayLogRepo.getByDate(todayDate),
-        dayTargetRepo.list(),
-        foodRepo.list(),
-        recipeRepo.list(),
-        recipeIngredientRepo.list(),
-        mealEntryRepo.listByDayLogId(todayDate),
-      ]);
-
       const currentTime = nowISO();
-      const safeDayLog: DayLog =
-        dayLog ??
-        ({
-          id: todayDate,
-          date: todayDate,
-          dayType: "normal",
-          activeKcal: 0,
-          activitySource: "manual",
-          healthSyncStatus: "idle",
-          manualActivityOverride: false,
-          healthPermissionsState: "unknown",
-          createdAt: currentTime,
-          updatedAt: currentTime,
-        } satisfies DayLog);
 
-      if (!dayLog) {
-        await dayLogRepo.upsert(safeDayLog);
+      const fallbackLog: DayLog = {
+        id: todayDate,
+        date: todayDate,
+        dayType: "normal",
+        activeKcal: 0,
+        activitySource: "manual",
+        healthSyncStatus: "idle",
+        manualActivityOverride: false,
+        healthPermissionsState: "unknown",
+        createdAt: currentTime,
+        updatedAt: currentTime,
+      };
+
+      try {
+        const [dayLog, dayTargets, foodsList, recipesList, recipeIngredients, mealEntries] = await withTimeout(
+          Promise.all([
+            dayLogRepo.getByDate(todayDate),
+            dayTargetRepo.list(),
+            foodRepo.list(),
+            recipeRepo.list(),
+            recipeIngredientRepo.list(),
+            mealEntryRepo.listByDayLogId(todayDate),
+          ]),
+          5000,
+        );
+
+        const safeDayLog: DayLog = dayLog ?? fallbackLog;
+
+        if (!dayLog) {
+          await dayLogRepo.upsert(safeDayLog);
+        }
+
+        setTodayLog(safeDayLog);
+        setTargets(dayTargets);
+        setFoods(foodsList);
+        setRecipes(recipesList);
+        setIngredients(recipeIngredients);
+        setEntries(mealEntries);
+      } catch (error) {
+        console.error("Today data load fallback activated", error);
+        // Fail-safe: render quickly even if IndexedDB is slow/unavailable.
+        setTodayLog(fallbackLog);
+        setTargets([]);
+        setFoods([]);
+        setRecipes([]);
+        setIngredients([]);
+        setEntries([]);
+      } finally {
+        setIsLoading(false);
       }
-
-      setTodayLog(safeDayLog);
-      setTargets(dayTargets);
-      setFoods(foodsList);
-      setRecipes(recipesList);
-      setIngredients(recipeIngredients);
-      setEntries(mealEntries);
-      setIsLoading(false);
     }
 
     loadTodayData().catch((error: unknown) => {
