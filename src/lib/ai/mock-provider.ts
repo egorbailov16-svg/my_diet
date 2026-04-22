@@ -31,7 +31,7 @@ export class MockAIProvider implements AIProvider {
     const notes: string[] = [];
 
     if (items.length === 0) {
-      notes.push("No structured items detected. User should edit draft manually.");
+      notes.push("Не удалось надежно распознать элементы. Пользователь должен вручную поправить черновик.");
     }
 
     return {

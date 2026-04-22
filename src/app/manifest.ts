@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "My Diet",
     short_name: "My Diet",
-    description: "Personal calorie and macro tracker",
+    description: "Персональный трекер калорий и БЖУ",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

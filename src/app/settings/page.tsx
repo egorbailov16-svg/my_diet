@@ -165,13 +165,13 @@ export default function SettingsPage() {
   }
 
   if (isLoading) {
-    return <section className="py-4 text-sm text-neutral-500">Loading...</section>;
+    return <section className="py-4 text-sm text-neutral-500">Загрузка...</section>;
   }
 
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Settings</p>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Настройки</p>
         <h1 className="text-xl font-semibold">Настройки</h1>
       </header>
 

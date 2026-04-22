@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "My Diet",
-  description: "Personal calorie and macro tracker",
+  description: "Персональный трекер калорий и БЖУ",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

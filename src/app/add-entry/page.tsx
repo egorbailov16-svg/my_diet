@@ -348,7 +348,7 @@ export default function AddEntryPage() {
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Add Entry</p>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Добавление</p>
         <h1 className="text-xl font-semibold">Быстро добавить еду</h1>
       </header>
 
@@ -366,7 +366,7 @@ export default function AddEntryPage() {
 
         {quickDraft.length > 0 ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Draft перед сохранением</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Черновик перед сохранением</p>
             {quickDraft.map((item, index) => (
               <div key={item.id} className="rounded-lg border border-neutral-200 p-2">
                 <p className="mb-1 text-xs text-neutral-500">
@@ -476,7 +476,7 @@ export default function AddEntryPage() {
 
       <div className="max-h-60 space-y-2 overflow-y-auto rounded-xl border border-neutral-200 p-3">
         {isLoading ? (
-          <p className="text-sm text-neutral-500">Loading...</p>
+          <p className="text-sm text-neutral-500">Загрузка...</p>
         ) : items.length === 0 ? (
           <p className="text-sm text-neutral-500">Ничего не найдено.</p>
         ) : (
@@ -533,7 +533,7 @@ export default function AddEntryPage() {
       </button>
 
       <Link href="/" className="flex h-12 w-full items-center justify-center rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
-        Назад к Today
+        Назад к Сегодня
       </Link>
     </section>
   );

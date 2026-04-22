@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/", label: "Today" },
-  { href: "/add-entry", label: "Add Entry" },
-  { href: "/foods", label: "Foods" },
-  { href: "/recipes", label: "Recipes" },
-  { href: "/progress", label: "Progress" },
-  { href: "/settings", label: "Settings" },
+  { href: "/", label: "Сегодня" },
+  { href: "/add-entry", label: "Добавить" },
+  { href: "/foods", label: "Продукты" },
+  { href: "/recipes", label: "Рецепты" },
+  { href: "/progress", label: "Прогресс" },
+  { href: "/settings", label: "Настройки" },
 ];
 
 export function MobileBottomNav() {

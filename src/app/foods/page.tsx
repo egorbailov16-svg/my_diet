@@ -176,7 +176,7 @@ export default function FoodsPage() {
       name: item.name,
       source: "custom",
       externalRefId,
-      note: `Imported from ${item.provider}${item.brand ? ` (${item.brand})` : ""}`,
+      note: `Импортировано из ${item.provider}${item.brand ? ` (${item.brand})` : ""}`,
       nutrientsPer100g: item.nutrientsPer100g,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -190,7 +190,7 @@ export default function FoodsPage() {
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Foods</p>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Продукты</p>
         <h1 className="text-xl font-semibold">Продукты</h1>
       </header>
 
@@ -326,7 +326,7 @@ export default function FoodsPage() {
 
       <div className="space-y-2">
         {isLoading ? (
-          <p className="text-sm text-neutral-500">Loading...</p>
+          <p className="text-sm text-neutral-500">Загрузка...</p>
         ) : filteredFoods.length === 0 ? (
           <p className="rounded-xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-500">Ничего не найдено.</p>
         ) : (

@@ -218,7 +218,7 @@ export default function RecipesPage() {
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Recipes</p>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Рецепты</p>
         <h1 className="text-xl font-semibold">Рецепты</h1>
       </header>
 
@@ -339,7 +339,7 @@ export default function RecipesPage() {
 
       <div className="space-y-2">
         {isLoading ? (
-          <p className="text-sm text-neutral-500">Loading...</p>
+          <p className="text-sm text-neutral-500">Загрузка...</p>
         ) : filteredRecipes.length === 0 ? (
           <p className="rounded-xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-500">Рецептов пока нет.</p>
         ) : (

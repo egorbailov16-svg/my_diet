@@ -159,7 +159,7 @@ export default function Home() {
         if (!food) {
           return {
             entry,
-            title: "Unknown food",
+            title: "Неизвестный продукт",
             nutrients: { kcal: 0, protein: 0, fat: 0, carbs: 0 },
           };
         }
@@ -175,7 +175,7 @@ export default function Home() {
       if (!recipe) {
         return {
           entry,
-          title: "Unknown recipe",
+          title: "Неизвестный рецепт",
           nutrients: { kcal: 0, protein: 0, fat: 0, carbs: 0 },
         };
       }
@@ -244,13 +244,13 @@ export default function Home() {
   }
 
   if (isLoading || !todayLog) {
-    return <section className="py-4 text-sm text-neutral-500">Loading...</section>;
+    return <section className="py-4 text-sm text-neutral-500">Загрузка...</section>;
   }
 
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Today</p>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Сегодня</p>
         <h1 className="text-xl font-semibold capitalize">{todayLabel}</h1>
       </header>
 
