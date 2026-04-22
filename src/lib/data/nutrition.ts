@@ -71,5 +71,10 @@ export function pickPreferredFood(candidates: Food[]): Food | null {
   }
 
   const customFood = candidates.find((food) => food.source === "custom");
-  return customFood ?? candidates[0];
+  if (customFood) {
+    return customFood;
+  }
+
+  const importedFood = candidates.find((food) => food.source === "imported");
+  return importedFood ?? candidates[0];
 }

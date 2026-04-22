@@ -3,7 +3,7 @@ export type ISODate = string;
 export type ISODateTime = string;
 
 export type DayType = "normal" | "strength";
-export type FoodSource = "custom" | "external";
+export type FoodSource = "custom" | "imported" | "external";
 export type RecentItemType = "food" | "recipe";
 
 export type NutrientsPer100g = {
@@ -58,6 +58,14 @@ export type Food = {
   name: string;
   source: FoodSource;
   externalRefId?: string;
+  externalMeta?: {
+    provider: string;
+    externalId: string;
+    barcode?: string;
+    rawName?: string;
+    importedAt?: ISODateTime;
+    rawSource?: Record<string, unknown>;
+  };
   note?: string;
   nutrientsPer100g: NutrientsPer100g;
   createdAt: ISODateTime;

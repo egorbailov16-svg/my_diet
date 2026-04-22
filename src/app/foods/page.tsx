@@ -2,7 +2,7 @@
 
 import { foodRepo, searchExternalFoods } from "@/lib/data";
 import type { ExternalFoodSearchResult, Food, FoodSource } from "@/lib/data";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type FoodFormState = {
   name: string;
@@ -43,7 +43,15 @@ function parseNumber(value: string): number {
 }
 
 function sourcePriority(source: FoodSource): number {
-  return source === "custom" ? 0 : 1;
+  if (source === "custom") return 0;
+  if (source === "imported") return 1;
+  return 2;
+}
+
+function sourceLabel(source: FoodSource): string {
+  if (source === "custom") return "свой";
+  if (source === "imported") return "импорт";
+  return "external";
 }
 
 export default function FoodsPage() {
@@ -55,7 +63,11 @@ export default function FoodsPage() {
   const [externalQuery, setExternalQuery] = useState("");
   const [isExternalLoading, setIsExternalLoading] = useState(false);
   const [externalResults, setExternalResults] = useState<ExternalFoodSearchResult[]>([]);
-  const [externalMessage, setExternalMessage] = useState("");
+  const [externalError, setExternalError] = useState("");
+  const [debouncedExternalQuery, setDebouncedExternalQuery] = useState("");
+  const [activeExternalQuery, setActiveExternalQuery] = useState("");
+  const externalCacheRef = useRef<Map<string, { ts: number; results: ExternalFoodSearchResult[] }>>(new Map());
+  const requestTokenRef = useRef(0);
 
   useEffect(() => {
     loadFoods()
@@ -81,7 +93,7 @@ export default function FoodsPage() {
   }, [foods, query]);
 
   function startEdit(food: Food) {
-    if (food.source !== "custom") return;
+    if (food.source === "external") return;
 
     setEditingId(food.id);
     setForm({
@@ -109,7 +121,7 @@ export default function FoodsPage() {
     const nextFood: Food = {
       id: editingId ?? makeFoodId(),
       name: form.name.trim(),
-      source: form.source,
+      source: editingId ? (currentEditing?.source ?? "custom") : "custom",
       note: form.note.trim() || undefined,
       nutrientsPer100g: {
         kcal: parseNumber(form.kcal),
@@ -129,7 +141,7 @@ export default function FoodsPage() {
   }
 
   async function onDelete(food: Food) {
-    if (food.source !== "custom") return;
+    if (food.source === "external") return;
     await foodRepo.remove(food.id);
     await loadFoods();
 
@@ -138,35 +150,67 @@ export default function FoodsPage() {
     }
   }
 
-  async function onExternalSearch() {
-    const trimmed = externalQuery.trim();
-    if (!trimmed) {
-      setExternalResults([]);
-      setExternalMessage("");
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedExternalQuery(externalQuery.trim());
+    }, 700);
+
+    return () => clearTimeout(timeoutId);
+  }, [externalQuery]);
+
+  useEffect(() => {
+    const query = debouncedExternalQuery;
+    if (query.length < 2) return;
+
+    const cached = externalCacheRef.current.get(query);
+    if (cached && Date.now() - cached.ts < 10 * 60 * 1000) {
+      setExternalResults(cached.results);
+      setExternalError("");
+      setActiveExternalQuery(query);
       return;
     }
 
+    const token = requestTokenRef.current + 1;
+    requestTokenRef.current = token;
     setIsExternalLoading(true);
-    setExternalMessage("");
-    try {
-      const results = await searchExternalFoods(trimmed);
-      setExternalResults(results);
-      if (results.length === 0) {
-        setExternalMessage("Ничего не найдено во внешнем источнике.");
-      }
-    } catch (error: unknown) {
-      console.error("External search failed", error);
-      setExternalMessage("Ошибка внешнего поиска. Попробуй еще раз.");
-    } finally {
-      setIsExternalLoading(false);
-    }
-  }
+    setExternalError("");
+    setActiveExternalQuery(query);
+
+    searchExternalFoods(query)
+      .then((results) => {
+        if (requestTokenRef.current !== token) return;
+        externalCacheRef.current.set(query, { ts: Date.now(), results });
+        setExternalResults(results);
+      })
+      .catch((error: unknown) => {
+        if (requestTokenRef.current !== token) return;
+        console.error("External search failed", error);
+        setExternalError("Ошибка внешнего поиска. Повтори запрос чуть позже.");
+        setExternalResults([]);
+      })
+      .finally(() => {
+        if (requestTokenRef.current === token) {
+          setIsExternalLoading(false);
+        }
+      });
+  }, [debouncedExternalQuery]);
 
   async function importExternalFood(item: ExternalFoodSearchResult) {
     const externalRefId = `${item.provider}:${item.externalId}`;
     const existing = foods.find((food) => food.externalRefId === externalRefId);
     if (existing) {
-      setExternalMessage("Этот внешний продукт уже импортирован локально.");
+      setExternalError("Этот продукт уже импортирован в локальную базу.");
+      return;
+    }
+
+    if (!item.hasCompleteNutrients) {
+      setExternalError("У продукта неполные КБЖУ. Импорт недоступен.");
+      return;
+    }
+
+    const { kcal, protein, fat, carbs } = item.nutrientsPer100g;
+    if (kcal === null || protein === null || fat === null || carbs === null) {
+      setExternalError("У продукта неполные КБЖУ. Импорт недоступен.");
       return;
     }
 
@@ -174,17 +218,25 @@ export default function FoodsPage() {
     const importedFood: Food = {
       id: makeFoodId(),
       name: item.name,
-      source: "custom",
+      source: "imported",
       externalRefId,
+      externalMeta: {
+        provider: item.provider,
+        externalId: item.externalId,
+        barcode: item.barcode,
+        rawName: item.name,
+        importedAt: timestamp,
+        rawSource: item.sourceMeta,
+      },
       note: `Импортировано из ${item.provider}${item.brand ? ` (${item.brand})` : ""}`,
-      nutrientsPer100g: item.nutrientsPer100g,
+      nutrientsPer100g: { kcal, protein, fat, carbs },
       createdAt: timestamp,
       updatedAt: timestamp,
     };
 
     await foodRepo.upsert(importedFood);
     await loadFoods();
-    setExternalMessage(`Импортировано: ${item.name}`);
+    setExternalError("");
   }
 
   return (
@@ -231,27 +283,7 @@ export default function FoodsPage() {
         />
 
         <div className="rounded-lg border border-neutral-200 p-2">
-          <p className="mb-2 text-xs text-neutral-500">Источник</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setForm((prev) => ({ ...prev, source: "custom" }))}
-              className={`h-10 rounded-lg text-xs font-semibold ${
-                form.source === "custom" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
-              }`}
-            >
-              custom
-            </button>
-            <button
-              type="button"
-              onClick={() => setForm((prev) => ({ ...prev, source: "external" }))}
-              className={`h-10 rounded-lg text-xs font-semibold ${
-                form.source === "external" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
-              }`}
-            >
-              external
-            </button>
-          </div>
+          <p className="text-xs text-neutral-500">Источник: локальный продукт</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -266,24 +298,26 @@ export default function FoodsPage() {
 
       <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
         <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Внешний поиск (OpenFoodFacts)</p>
-        <div className="grid grid-cols-[1fr_auto] gap-2">
-          <input
-            type="text"
-            placeholder="Найти во внешнем источнике"
-            value={externalQuery}
-            onChange={(event) => setExternalQuery(event.target.value)}
-            className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
-          />
-          <button
-            type="button"
-            onClick={onExternalSearch}
-            className="h-12 rounded-lg bg-neutral-900 px-4 text-sm font-semibold text-white"
-            disabled={isExternalLoading}
-          >
-            {isExternalLoading ? "..." : "Поиск"}
-          </button>
-        </div>
-        {externalMessage ? <p className="text-xs text-neutral-600">{externalMessage}</p> : null}
+        <input
+          type="text"
+          placeholder="Найти во внешней базе (минимум 2 символа)"
+          value={externalQuery}
+          onChange={(event) => {
+            const value = event.target.value;
+            setExternalQuery(value);
+            if (value.trim().length < 2) {
+              setExternalResults([]);
+              setExternalError("");
+              setActiveExternalQuery("");
+            }
+          }}
+          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+        />
+        {isExternalLoading ? <p className="text-xs text-neutral-600">Ищем во внешней базе...</p> : null}
+        {externalError ? <p className="text-xs text-red-600">{externalError}</p> : null}
+        {!isExternalLoading && activeExternalQuery.length >= 2 && externalResults.length === 0 && !externalError ? (
+          <p className="text-xs text-neutral-600">Ничего не найдено во внешней базе.</p>
+        ) : null}
         {externalResults.length > 0 ? (
           <div className="max-h-64 space-y-2 overflow-y-auto">
             {externalResults.map((item) => (
@@ -299,15 +333,17 @@ export default function FoodsPage() {
                   <button
                     type="button"
                     onClick={() => importExternalFood(item)}
+                    disabled={!item.hasCompleteNutrients}
                     className="h-10 rounded-lg bg-neutral-900 px-3 text-xs font-semibold text-white"
                   >
                     Импорт
                   </button>
                 </div>
                 <p className="text-xs text-neutral-600">
-                  {item.nutrientsPer100g.kcal} ккал · Б {item.nutrientsPer100g.protein} · Ж {item.nutrientsPer100g.fat} · У{" "}
-                  {item.nutrientsPer100g.carbs} (на 100 г)
+                  {item.nutrientsPer100g.kcal ?? "—"} ккал · Б {item.nutrientsPer100g.protein ?? "—"} · Ж {item.nutrientsPer100g.fat ?? "—"} ·
+                  {" "}У {item.nutrientsPer100g.carbs ?? "—"} (на 100 г)
                 </p>
+                {!item.hasCompleteNutrients ? <p className="mt-1 text-xs text-amber-700">Неполные данные КБЖУ</p> : null}
               </article>
             ))}
           </div>
@@ -337,17 +373,21 @@ export default function FoodsPage() {
                   <h2 className="text-sm font-semibold">{food.name}</h2>
                   <span
                     className={`mt-1 inline-block rounded px-2 py-1 text-[11px] font-medium ${
-                      food.source === "custom" ? "bg-neutral-900 text-white" : "bg-neutral-200 text-neutral-700"
+                      food.source === "custom"
+                        ? "bg-neutral-900 text-white"
+                        : food.source === "imported"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-neutral-200 text-neutral-700"
                     }`}
                   >
-                    {food.source}
+                    {sourceLabel(food.source)}
                   </span>
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => startEdit(food)}
-                    disabled={food.source !== "custom"}
+                    disabled={food.source === "external"}
                     className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800 disabled:opacity-40"
                   >
                     Изм.
@@ -355,7 +395,7 @@ export default function FoodsPage() {
                   <button
                     type="button"
                     onClick={() => onDelete(food)}
-                    disabled={food.source !== "custom"}
+                    disabled={food.source === "external"}
                     className="h-10 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700 disabled:opacity-40"
                   >
                     Удал.
