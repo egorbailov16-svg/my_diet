@@ -98,6 +98,11 @@ export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, pro
 
 class OpenFoodFactsProvider implements FoodSearchProvider {
   providerId = "openfoodfacts";
+  private readonly endpointCandidates = [
+    "https://openfoodfacts.org/cgi/search.pl",
+    "https://world.openfoodfacts.net/cgi/search.pl",
+    "https://world.openfoodfacts.org/cgi/search.pl",
+  ];
 
   async searchFoods(query: string): Promise<ExternalFoodSearchResult[]> {
     const trimmed = query.trim();
@@ -114,17 +119,28 @@ class OpenFoodFactsProvider implements FoodSearchProvider {
       fields: "code,product_name_ru,generic_name_ru,product_name,generic_name,brands,nutriments",
     });
 
-    const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?${params.toString()}`);
-    if (!response.ok) {
-      throw new Error(`OpenFoodFacts request failed with ${response.status}`);
+    let lastError: Error | null = null;
+
+    for (const endpoint of this.endpointCandidates) {
+      try {
+        const response = await fetch(`${endpoint}?${params.toString()}`);
+        if (!response.ok) {
+          lastError = new Error(`OpenFoodFacts request failed with ${response.status}`);
+          continue;
+        }
+
+        const data = (await response.json()) as OpenFoodFactsResponse;
+        const products = data.products ?? [];
+
+        return products
+          .map((product) => normalizeOpenFoodFactsProduct(product, this.providerId))
+          .filter((item): item is ExternalFoodSearchResult => item !== null);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("OpenFoodFacts request failed");
+      }
     }
 
-    const data = (await response.json()) as OpenFoodFactsResponse;
-    const products = data.products ?? [];
-
-    return products
-      .map((product) => normalizeOpenFoodFactsProduct(product, this.providerId))
-      .filter((item): item is ExternalFoodSearchResult => item !== null);
+    throw lastError ?? new Error("OpenFoodFacts unavailable");
   }
 }
 

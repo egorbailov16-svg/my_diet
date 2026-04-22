@@ -88,7 +88,7 @@ function parsePart(part: string): ParsedQuickEntryItem | null {
   }
 
   const unitRaw = unitValue.toLowerCase();
-  const productName = nameValue.trim();
+  const productName = cleanupProductName(nameValue.trim());
   if (!productName) {
     return null;
   }
@@ -101,6 +101,13 @@ function parsePart(part: string): ParsedQuickEntryItem | null {
     unit: normalizedUnit,
     productName,
   };
+}
+
+function cleanupProductName(name: string): string {
+  return name
+    .replace(/\b(я|съел|съела|было|был|была|у\s+меня|прием\s+пищи|прием|вот\s+этой|вот\s+этого)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function inferUnitFromName(name: string): ParsedQuickEntryUnit {
