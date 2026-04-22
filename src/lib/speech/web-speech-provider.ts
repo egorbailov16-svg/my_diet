@@ -1,5 +1,5 @@
 import type { SpeechProvider } from "@/lib/speech/provider";
-import type { SpeechAvailability, SpeechTranscriptionResult } from "@/lib/speech/types";
+import type { SpeechAvailabilityInfo, SpeechTranscriptionResult } from "@/lib/speech/types";
 
 type SpeechResult = {
   transcript?: string;
@@ -18,6 +18,8 @@ type RecognitionInstance = {
   onresult: ((event: RecognitionEventLike) => void) | null;
   onerror: (() => void) | null;
   onnomatch: (() => void) | null;
+  onend: (() => void) | null;
+  abort: () => void;
   start: () => void;
 };
 
@@ -38,8 +40,11 @@ export class WebSpeechProvider implements SpeechProvider {
     return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
   }
 
-  getAvailability(): SpeechAvailability {
-    return this.getCtor() ? "available" : "unavailable";
+  getAvailability(): SpeechAvailabilityInfo {
+    if (typeof window === "undefined") return { availability: "unavailable", reason: "server-side" };
+    if (!window.isSecureContext) return { availability: "unavailable", reason: "requires https" };
+    if (!this.getCtor()) return { availability: "unavailable", reason: "speech api unsupported" };
+    return { availability: "available" };
   }
 
   async listenOnce(lang: string): Promise<SpeechTranscriptionResult> {
@@ -51,24 +56,53 @@ export class WebSpeechProvider implements SpeechProvider {
     return new Promise((resolve, reject) => {
       const recognition = new Ctor();
       recognition.lang = lang;
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       recognition.maxAlternatives = 1;
-      recognition.continuous = false;
+      recognition.continuous = true;
+      let transcript = "";
+      let confidence = 0.5;
+      const stopId = window.setTimeout(() => {
+        recognition.abort();
+      }, 12000);
 
       recognition.onresult = (event: RecognitionEventLike) => {
-        const result = event.results?.[0]?.[0];
-        resolve({
-          text: result?.transcript?.trim() ?? "",
-          confidence: typeof result?.confidence === "number" ? result.confidence : 0.5,
-        });
+        const results = event.results;
+        if (!results) return;
+        let merged = "";
+        let conf = confidence;
+        for (let i = 0; i < results.length; i += 1) {
+          const result = results[i]?.[0];
+          if (!result?.transcript) continue;
+          merged += `${result.transcript} `;
+          if (typeof result.confidence === "number") {
+            conf = result.confidence;
+          }
+        }
+        transcript = merged.trim();
+        confidence = conf;
       };
 
       recognition.onerror = () => {
-        reject(new Error("Speech recognition failed"));
+        window.clearTimeout(stopId);
+        reject(new Error("speech_error"));
       };
 
       recognition.onnomatch = () => {
-        reject(new Error("No speech match"));
+        window.clearTimeout(stopId);
+        reject(new Error("no_match"));
+      };
+
+      recognition.onend = () => {
+        window.clearTimeout(stopId);
+        if (!transcript) {
+          reject(new Error("empty_result"));
+          return;
+        }
+
+        resolve({
+          text: transcript,
+          confidence,
+        });
       };
 
       recognition.start();

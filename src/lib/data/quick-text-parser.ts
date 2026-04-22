@@ -7,6 +7,22 @@ export type ParsedQuickEntryItem = {
   productName: string;
 };
 
+const NUMBER_WORDS: Record<string, number> = {
+  один: 1,
+  одна: 1,
+  одно: 1,
+  два: 2,
+  две: 2,
+  три: 3,
+  четыре: 4,
+  пять: 5,
+  шесть: 6,
+  семь: 7,
+  восемь: 8,
+  девять: 9,
+  десять: 10,
+};
+
 const UNIT_ALIASES: Record<string, ParsedQuickEntryUnit> = {
   г: "g",
   гр: "g",
@@ -27,17 +43,34 @@ const UNIT_ALIASES: Record<string, ParsedQuickEntryUnit> = {
 };
 
 const LEADING_AMOUNT_REGEX =
-  /^\s*(\d+(?:[.,]\d+)?)\s*(г|гр|грамм|грамма|граммов|кг|kg|шт|штука|штуки|штук)?\s+(.+?)\s*$/i;
+  /^\s*(\d+(?:[.,]\d+)?)\s*(г|гр|грамм|грамма|граммов|кг|kg|мл|ml|миллилитр|миллилитра|миллилитров|шт|штука|штуки|штук)?\s+(.+?)\s*$/i;
 const TRAILING_AMOUNT_REGEX =
   /^\s*(.+?)\s+(\d+(?:[.,]\d+)?)\s*(г|гр|грамм|грамма|граммов|кг|kg|мл|ml|миллилитр|миллилитра|миллилитров|шт|штука|штуки|штук)\s*$/i;
 
 export function parseQuickEntryText(input: string): ParsedQuickEntryItem[] {
-  return input
+  const normalized = normalizeNarrativeInput(input);
+
+  return normalized
     .split(/(?:\+|,|\s+и\s+)/i)
     .map((part) => part.trim())
     .filter(Boolean)
     .map(parsePart)
     .filter((item): item is ParsedQuickEntryItem => item !== null);
+}
+
+function normalizeNarrativeInput(input: string): string {
+  let text = input.toLowerCase();
+  text = text.replace(/[.!?;:]/g, ",");
+  text = text.replace(/плюс/gi, "+");
+  text = text.replace(/(?:на\s+\w+\s+при[её]м(?:\s+пищи)?|на\s+завтрак|на\s+обед|на\s+ужин)/gi, ",");
+  text = text.replace(/\bоставш(?:ейся|ая|ее|ее)\b/gi, "");
+  text = text.replace(/\s+/g, " ").trim();
+
+  for (const [word, value] of Object.entries(NUMBER_WORDS)) {
+    text = text.replace(new RegExp(`\\b${word}\\b`, "gi"), String(value));
+  }
+
+  return text;
 }
 
 function parsePart(part: string): ParsedQuickEntryItem | null {

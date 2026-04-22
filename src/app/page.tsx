@@ -70,6 +70,7 @@ type EntryWithNutrients = {
 
 export default function Home() {
   const healthProvider = useMemo(() => createHealthProvider(), []);
+  const isHealthSupported = healthProvider.id !== "unavailable";
   const todayLogRef = useRef<DayLog | null>(null);
   const isHealthSyncingRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -200,6 +201,20 @@ export default function Home() {
   }, [dayTotals, currentTarget]);
 
   const syncHealthActiveCalories = useCallback(async (log: DayLog, requestPermission: boolean) => {
+    if (!isHealthSupported) {
+      if (log.healthSyncStatus !== "unavailable" || log.healthPermissionsState !== "unavailable") {
+        const updated: DayLog = {
+          ...log,
+          healthSyncStatus: "unavailable",
+          healthPermissionsState: "unavailable",
+          updatedAt: nowISO(),
+        };
+        setTodayLog(updated);
+        await dayLogRepo.upsert(updated);
+      }
+      return;
+    }
+
     if (isHealthSyncingRef.current) {
       return;
     }
@@ -268,9 +283,13 @@ export default function Home() {
       setIsHealthSyncing(false);
       isHealthSyncingRef.current = false;
     }
-  }, [healthProvider]);
+  }, [healthProvider, isHealthSupported]);
 
   useEffect(() => {
+    if (!isHealthSupported) {
+      return;
+    }
+
     if (!todayLogRef.current) return;
 
     const initialSyncId = window.setTimeout(() => {
@@ -318,7 +337,7 @@ export default function Home() {
         removeCapacitorListener();
       }
     };
-  }, [todayLog?.id, syncHealthActiveCalories]);
+  }, [isHealthSupported, todayLog?.id, syncHealthActiveCalories]);
 
   const entriesWithNutrients = useMemo<EntryWithNutrients[]>(() => {
     return entries.map((entry) => {
@@ -465,19 +484,20 @@ export default function Home() {
           className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
         />
         <div className="mt-2 space-y-1 text-xs text-neutral-600">
-          <p>Источник: {todayLog.activitySource === "apple_health" ? "apple health" : "manual"}</p>
+          <p>Источник: {todayLog.activitySource === "apple_health" ? "Apple Health" : "вручную"}</p>
           <p>Статус синка: {todayLog.healthSyncStatus ?? "idle"}</p>
           <p>Разрешение: {todayLog.healthPermissionsState ?? "unknown"}</p>
           <p>Синхронизировано: {todayLog.lastActivitySyncAt ? new Date(todayLog.lastActivitySyncAt).toLocaleString("ru-RU") : "—"}</p>
+          {!isHealthSupported ? <p>Apple Health работает только в iOS-приложении через Capacitor.</p> : null}
           {todayLog.manualActivityOverride ? <p className="text-amber-700">Включен ручной override активных ккал.</p> : null}
         </div>
         <button
           type="button"
           onClick={() => syncHealthActiveCalories(todayLog, true)}
-          disabled={isHealthSyncing}
+          disabled={isHealthSyncing || !isHealthSupported}
           className="mt-2 h-10 w-full rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-800 disabled:opacity-40"
         >
-          {isHealthSyncing ? "Синхронизация..." : "Обновить из Apple Health"}
+          {isHealthSyncing ? "Синхронизация..." : isHealthSupported ? "Обновить из Apple Health" : "Apple Health недоступен в вебе"}
         </button>
       </div>
 

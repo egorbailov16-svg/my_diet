@@ -4,7 +4,7 @@ import { WebSpeechProvider } from "@/lib/speech/web-speech-provider";
 
 export function createSpeechProvider(): SpeechProvider {
   const provider = new WebSpeechProvider();
-  if (provider.getAvailability() === "available") {
+  if (provider.getAvailability().availability === "available") {
     return provider;
   }
 

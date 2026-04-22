@@ -73,6 +73,7 @@ export default function AddEntryPage() {
   const [quickMessage, setQuickMessage] = useState("");
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceText, setVoiceText] = useState("");
+  const [voiceError, setVoiceError] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -343,13 +344,16 @@ export default function AddEntryPage() {
   }
 
   async function startVoiceInput() {
-    if (speechProvider.getAvailability() !== "available") {
+    const speechAvailability = speechProvider.getAvailability();
+    if (speechAvailability.availability !== "available") {
       setVoiceState("unavailable");
+      setVoiceError(speechAvailability.reason ?? "unknown");
       setQuickMessage("Голосовой ввод недоступен в этом браузере. Используй обычный текстовый ввод.");
       return;
     }
 
     try {
+      setVoiceError("");
       setVoiceState("listening");
       const transcription = await speechProvider.listenOnce("ru-RU");
       setVoiceText(transcription.text);
@@ -364,8 +368,10 @@ export default function AddEntryPage() {
 
       parseQuickTextToDraft(transcription.text);
       setVoiceState("parsed");
-    } catch {
+    } catch (error) {
       setVoiceState("error");
+      const message = error instanceof Error ? error.message : "unknown";
+      setVoiceError(message);
       setQuickMessage("Ошибка голосового ввода. Попробуй еще раз.");
     }
   }
@@ -461,6 +467,7 @@ export default function AddEntryPage() {
                     : "ошибка"}
         </p>
         {voiceText ? <p className="text-xs text-neutral-700">Распознано: {voiceText}</p> : null}
+        {voiceError ? <p className="text-xs text-red-700">Детали: {voiceError}</p> : null}
         <textarea
           value={quickInput}
           onChange={(event) => setQuickInput(event.target.value)}

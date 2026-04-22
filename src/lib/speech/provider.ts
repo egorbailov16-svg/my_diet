@@ -1,7 +1,7 @@
-import type { SpeechAvailability, SpeechTranscriptionResult } from "@/lib/speech/types";
+import type { SpeechAvailabilityInfo, SpeechTranscriptionResult } from "@/lib/speech/types";
 
 export interface SpeechProvider {
   id: string;
-  getAvailability(): SpeechAvailability;
+  getAvailability(): SpeechAvailabilityInfo;
   listenOnce(lang: string): Promise<SpeechTranscriptionResult>;
 }
