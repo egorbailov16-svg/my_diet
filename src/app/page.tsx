@@ -15,7 +15,7 @@ import {
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
 import { createHealthProvider } from "@/lib/health";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -52,6 +52,8 @@ type EntryWithNutrients = {
 
 export default function Home() {
   const healthProvider = useMemo(() => createHealthProvider(), []);
+  const todayLogRef = useRef<DayLog | null>(null);
+  const isHealthSyncingRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isHealthSyncing, setIsHealthSyncing] = useState(false);
   const [todayLog, setTodayLog] = useState<DayLog | null>(null);
@@ -67,6 +69,10 @@ export default function Home() {
 
   const todayDate = useMemo(() => todayISODate(), []);
   const todayLabel = useMemo(() => formatTodayDateLabel(todayDate), [todayDate]);
+
+  useEffect(() => {
+    todayLogRef.current = todayLog;
+  }, [todayLog]);
 
   async function refreshDayEntries(dayLogId: string) {
     const mealEntries = await mealEntryRepo.listByDayLogId(dayLogId);
@@ -160,6 +166,10 @@ export default function Home() {
   }, [dayTotals, currentTarget]);
 
   const syncHealthActiveCalories = useCallback(async (log: DayLog, requestPermission: boolean) => {
+    if (isHealthSyncingRef.current) {
+      return;
+    }
+    isHealthSyncingRef.current = true;
 
     setIsHealthSyncing(true);
 
@@ -174,6 +184,7 @@ export default function Home() {
       setTodayLog(updated);
       await dayLogRepo.upsert(updated);
       setIsHealthSyncing(false);
+      isHealthSyncingRef.current = false;
       return;
     }
 
@@ -192,6 +203,7 @@ export default function Home() {
       setTodayLog(updated);
       await dayLogRepo.upsert(updated);
       setIsHealthSyncing(false);
+      isHealthSyncingRef.current = false;
       return;
     }
 
@@ -220,21 +232,26 @@ export default function Home() {
       await dayLogRepo.upsert(updated);
     } finally {
       setIsHealthSyncing(false);
+      isHealthSyncingRef.current = false;
     }
   }, [healthProvider]);
 
   useEffect(() => {
-    if (!todayLog) return;
+    if (!todayLogRef.current) return;
 
     const initialSyncId = window.setTimeout(() => {
-      syncHealthActiveCalories(todayLog, false).catch((error: unknown) => {
+      const log = todayLogRef.current;
+      if (!log) return;
+      syncHealthActiveCalories(log, false).catch((error: unknown) => {
         console.error("Health sync init failed", error);
       });
     }, 0);
 
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        syncHealthActiveCalories(todayLog, false).catch((error: unknown) => {
+        const log = todayLogRef.current;
+        if (!log) return;
+        syncHealthActiveCalories(log, false).catch((error: unknown) => {
           console.error("Health sync on visibility failed", error);
         });
       }
@@ -246,7 +263,9 @@ export default function Home() {
     import("@capacitor/app")
       .then(({ App }) =>
         App.addListener("resume", () => {
-          syncHealthActiveCalories(todayLog, false).catch((error: unknown) => {
+          const log = todayLogRef.current;
+          if (!log) return;
+          syncHealthActiveCalories(log, false).catch((error: unknown) => {
             console.error("Health sync on resume failed", error);
           });
         }),
@@ -265,7 +284,7 @@ export default function Home() {
         removeCapacitorListener();
       }
     };
-  }, [todayLog, syncHealthActiveCalories]);
+  }, [todayLog?.id, syncHealthActiveCalories]);
 
   const entriesWithNutrients = useMemo<EntryWithNutrients[]>(() => {
     return entries.map((entry) => {
