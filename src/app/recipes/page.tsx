@@ -218,8 +218,8 @@ export default function RecipesPage() {
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Рецепты</p>
-        <h1 className="text-xl font-semibold">Рецепты</h1>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Добавить блюдо</p>
+        <h1 className="text-xl font-semibold">Добавить блюдо</h1>
       </header>
 
       <form onSubmit={onSaveRecipe} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">

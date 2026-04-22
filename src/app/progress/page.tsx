@@ -2,17 +2,21 @@
 
 import {
   calculateDayTotals,
-  calculateWeeklyAverages,
   dayLogRepo,
+  dayTargetRepo,
   foodRepo,
   getWeightForDate,
-  getWeeklyAverageWeight,
   mealEntryRepo,
+  periodAnalysisRepo,
   recipeIngredientRepo,
   recipeRepo,
   weightLogRepo,
+  type DayTarget,
+  type PeriodAnalysis,
+  type PeriodRangeDays,
 } from "@/lib/data";
 import type { DayLog, Food, MealEntry, Recipe, RecipeIngredient, WeightLog } from "@/lib/data";
+import { buildPeriodAnalysis } from "@/lib/ai";
 import { useEffect, useMemo, useState } from "react";
 
 function todayISODate(): string {
@@ -42,12 +46,15 @@ function formatNumber(value: number): string {
 
 export default function ProgressPage() {
   const [isLoading, setIsLoading] = useState(true);
+  const [rangeDays, setRangeDays] = useState<PeriodRangeDays>(7);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [dayLogs, setDayLogs] = useState<DayLog[]>([]);
+  const [dayTargets, setDayTargets] = useState<DayTarget[]>([]);
   const [mealEntries, setMealEntries] = useState<MealEntry[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
+  const [analysisCache, setAnalysisCache] = useState<PeriodAnalysis | null>(null);
   const [dateInput, setDateInput] = useState(todayISODate());
   const [weightInput, setWeightInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,9 +68,10 @@ export default function ProgressPage() {
   }, []);
 
   async function loadData() {
-    const [weightLogsList, dayLogsList, mealEntriesList, foodsList, recipesList, recipeIngredientsList] = await Promise.all([
+    const [weightLogsList, dayLogsList, dayTargetsList, mealEntriesList, foodsList, recipesList, recipeIngredientsList] = await Promise.all([
       weightLogRepo.list(),
       dayLogRepo.list(),
+      dayTargetRepo.list(),
       mealEntryRepo.list(),
       foodRepo.list(),
       recipeRepo.list(),
@@ -72,6 +80,7 @@ export default function ProgressPage() {
 
     setWeightLogs([...weightLogsList].sort((a, b) => b.date.localeCompare(a.date)));
     setDayLogs(dayLogsList);
+    setDayTargets(dayTargetsList);
     setMealEntries(mealEntriesList);
     setFoods(foodsList);
     setRecipes(recipesList);
@@ -79,7 +88,6 @@ export default function ProgressPage() {
   }
 
   const todayWeight = useMemo(() => getWeightForDate(weightLogs, today), [weightLogs, today]);
-  const weeklyAverageWeight = useMemo(() => getWeeklyAverageWeight(weightLogs, today), [weightLogs, today]);
 
   const foodsById = useMemo(() => new Map(foods.map((food) => [food.id, food])), [foods]);
   const recipesById = useMemo(() => new Map(recipes.map((recipe) => [recipe.id, recipe])), [recipes]);
@@ -93,51 +101,152 @@ export default function ProgressPage() {
     return map;
   }, [recipeIngredients]);
 
-  const weeklyNutrition = useMemo(() => {
-    const weekStart = new Date(`${today}T00:00:00`).getTime() - 6 * 24 * 60 * 60 * 1000;
-    const weekDayLogs = dayLogs.filter((log) => {
-      const value = new Date(`${log.date}T00:00:00`).getTime();
-      return value >= weekStart && value <= new Date(`${today}T00:00:00`).getTime();
-    });
+  const periodDates = useMemo(() => {
+    const end = new Date(`${today}T00:00:00`).getTime();
+    const start = end - (rangeDays - 1) * 24 * 60 * 60 * 1000;
+    return { start, end };
+  }, [today, rangeDays]);
 
-    const totals = weekDayLogs.map((dayLog) =>
-      calculateDayTotals({
+  const periodDayLogs = useMemo(() => {
+    return dayLogs.filter((log) => {
+      const value = new Date(`${log.date}T00:00:00`).getTime();
+      return value >= periodDates.start && value <= periodDates.end;
+    });
+  }, [dayLogs, periodDates]);
+
+  const periodTotals = useMemo(() => {
+    return periodDayLogs.map((dayLog) => ({
+      dayLog,
+      totals: calculateDayTotals({
         dayLog,
         mealEntries: mealEntries.filter((entry) => entry.dayLogId === dayLog.id),
         foodsById,
         recipesById,
         recipeIngredientsByRecipeId: ingredientsByRecipeId,
       }),
-    );
+    }));
+  }, [periodDayLogs, mealEntries, foodsById, recipesById, ingredientsByRecipeId]);
 
-    return calculateWeeklyAverages(totals);
-  }, [today, dayLogs, mealEntries, foodsById, recipesById, ingredientsByRecipeId]);
-
-  const dailyWeightPoints = useMemo(() => {
-    return [...weightLogs]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-14)
-      .map((item) => ({ date: item.date.slice(5), value: item.weightKg }));
-  }, [weightLogs]);
-
-  const weeklyWeightPoints = useMemo(() => {
-    const grouped = new Map<string, number[]>();
-
-    for (const entry of weightLogs) {
-      const key = getWeekKey(entry.date);
-      const current = grouped.get(key) ?? [];
-      current.push(entry.weightKg);
-      grouped.set(key, current);
+  const periodNutrition = useMemo(() => {
+    if (periodTotals.length === 0) {
+      return { kcal: 0, protein: 0, fat: 0, carbs: 0, activity: 0 };
     }
 
-    return [...grouped.entries()]
-      .map(([week, values]) => ({
-        label: week,
-        value: values.reduce((acc, v) => acc + v, 0) / values.length,
+    const sums = periodTotals.reduce(
+      (acc, item) => ({
+        kcal: acc.kcal + item.totals.consumed.kcal,
+        protein: acc.protein + item.totals.consumed.protein,
+        fat: acc.fat + item.totals.consumed.fat,
+        carbs: acc.carbs + item.totals.consumed.carbs,
+        activity: acc.activity + item.totals.activeKcal,
+      }),
+      { kcal: 0, protein: 0, fat: 0, carbs: 0, activity: 0 },
+    );
+
+    return {
+      kcal: sums.kcal / periodTotals.length,
+      protein: sums.protein / periodTotals.length,
+      fat: sums.fat / periodTotals.length,
+      carbs: sums.carbs / periodTotals.length,
+      activity: sums.activity / periodTotals.length,
+    };
+  }, [periodTotals]);
+
+  const periodWeightPoints = useMemo(() => {
+    return [...weightLogs]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .filter((item) => {
+        const value = new Date(`${item.date}T00:00:00`).getTime();
+        return value >= periodDates.start && value <= periodDates.end;
+      })
+      .map((item) => ({ date: item.date.slice(5), value: item.weightKg }));
+  }, [weightLogs, periodDates]);
+
+  const periodKcalPoints = useMemo(() => {
+    return periodTotals
+      .map((item) => ({ label: item.dayLog.date.slice(5), value: item.totals.consumed.kcal }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [periodTotals]);
+
+  const periodMacroPoints = useMemo(() => {
+    return periodTotals
+      .map((item) => ({
+        label: item.dayLog.date.slice(5),
+        protein: item.totals.consumed.protein,
+        fat: item.totals.consumed.fat,
+        carbs: item.totals.consumed.carbs,
       }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .slice(-8);
-  }, [weightLogs]);
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [periodTotals]);
+
+  const avgWeight = useMemo(() => {
+    if (periodWeightPoints.length === 0) return 0;
+    return periodWeightPoints.reduce((acc, item) => acc + item.value, 0) / periodWeightPoints.length;
+  }, [periodWeightPoints]);
+
+  const weightDelta = useMemo(() => {
+    if (periodWeightPoints.length < 2) return 0;
+    return periodWeightPoints[periodWeightPoints.length - 1].value - periodWeightPoints[0].value;
+  }, [periodWeightPoints]);
+
+  const completedDays = useMemo(() => periodDayLogs.filter((d) => d.status === "completed").length, [periodDayLogs]);
+
+  const planHitRate = useMemo(() => {
+    if (periodTotals.length === 0) return 0;
+    let hits = 0;
+    for (const total of periodTotals) {
+      const target = dayTargets.find((item) => item.dayType === total.dayLog.dayType);
+      if (!target) continue;
+      const inRange =
+        total.totals.consumed.kcal >= target.kcalMin &&
+        total.totals.consumed.kcal <= target.kcalMax &&
+        total.totals.consumed.protein >= target.proteinTarget - 10 &&
+        total.totals.consumed.fat >= target.fatMin &&
+        total.totals.consumed.fat <= target.fatMax &&
+        total.totals.consumed.carbs >= target.carbsMin &&
+        total.totals.consumed.carbs <= target.carbsMax;
+      if (inRange) hits += 1;
+    }
+    return (hits / periodTotals.length) * 100;
+  }, [periodTotals, dayTargets]);
+
+  const microCoverage = useMemo(() => {
+    if (foods.length === 0) return 0;
+    const withMicro = foods.filter((food) => food.micronutrientsPer100g || food.vitaminsPer100g).length;
+    return (withMicro / foods.length) * 100;
+  }, [foods]);
+
+  useEffect(() => {
+    const startDate = new Date(periodDates.start).toISOString().slice(0, 10);
+    const endDate = new Date(periodDates.end).toISOString().slice(0, 10);
+    const analysisId = `period_${rangeDays}_${startDate}_${endDate}`;
+    const next = buildPeriodAnalysis({
+      rangeDays,
+      startDate,
+      endDate,
+      avgWeight,
+      deltaWeight: weightDelta,
+      avgKcal: periodNutrition.kcal,
+      avgProtein: periodNutrition.protein,
+      avgFat: periodNutrition.fat,
+      avgCarbs: periodNutrition.carbs,
+      avgActivity: periodNutrition.activity,
+      completedDays,
+      planHitRate,
+      micronutrientCoverage: microCoverage,
+    });
+
+    const cached: PeriodAnalysis = {
+      id: analysisId,
+      generatedAt: nowISO(),
+      ...next,
+    };
+
+    periodAnalysisRepo
+      .upsert(cached)
+      .then(() => setAnalysisCache(cached))
+      .catch((error: unknown) => console.error("Failed to cache period analysis", error));
+  }, [rangeDays, periodDates, avgWeight, weightDelta, periodNutrition, completedDays, planHitRate, microCoverage]);
 
   async function saveWeight(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -189,28 +298,74 @@ export default function ProgressPage() {
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Прогресс</p>
-        <h1 className="text-xl font-semibold">Прогресс</h1>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Отчет</p>
+        <h1 className="text-xl font-semibold">Отчет</h1>
       </header>
+
+      <div className="grid grid-cols-3 gap-2">
+        {[7, 14, 30].map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setRangeDays(value as PeriodRangeDays)}
+            className={`h-11 rounded-lg text-sm font-semibold ${rangeDays === value ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"}`}
+          >
+            {value} дней
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         <KpiCard label="Вес сегодня" value={todayWeight ? `${formatNumber(todayWeight.weightKg)} кг` : "нет"} />
-        <KpiCard label="Вес 7д ср." value={`${formatNumber(weeklyAverageWeight)} кг`} />
-        <KpiCard label="Ккал 7д ср." value={`${formatNumber(weeklyNutrition.kcal)} ккал`} />
+        <KpiCard label="Средний вес" value={`${formatNumber(avgWeight)} кг`} />
+        <KpiCard label="Изменение веса" value={`${weightDelta > 0 ? "+" : ""}${formatNumber(weightDelta)} кг`} />
+        <KpiCard label="Средние ккал" value={`${formatNumber(periodNutrition.kcal)} ккал`} />
         <KpiCard
-          label="Б/Ж/У 7д ср."
-          value={`${formatNumber(weeklyNutrition.protein)}/${formatNumber(weeklyNutrition.fat)}/${formatNumber(weeklyNutrition.carbs)}`}
+          label="Средние Б/Ж/У"
+          value={`${formatNumber(periodNutrition.protein)}/${formatNumber(periodNutrition.fat)}/${formatNumber(periodNutrition.carbs)}`}
         />
+        <KpiCard label="Средняя активность" value={`${formatNumber(periodNutrition.activity)} ккал`} />
+        <KpiCard label="Завершенных дней" value={`${completedDays}`} />
+        <KpiCard label="Попадание в план" value={`${formatNumber(planHitRate)}%`} />
       </div>
 
       <div className="rounded-xl border border-neutral-200 p-3">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Вес по дням</p>
-        <LineChart points={dailyWeightPoints} />
+        <LineChart points={periodWeightPoints} />
       </div>
 
       <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Средний вес по неделям</p>
-        <BarChart points={weeklyWeightPoints} />
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Калории по дням</p>
+        <BarChart points={periodKcalPoints} />
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Б/Ж/У по дням</p>
+        <MacroTrendChart points={periodMacroPoints} />
+      </div>
+
+      {analysisCache ? (
+        <div className="rounded-xl border border-neutral-200 p-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">AI-анализ периода</p>
+          <p className="text-sm text-neutral-800">{analysisCache.summary}</p>
+          <SectionList title="Общий вывод" items={analysisCache.good} />
+          <SectionList title="Основные проблемы" items={analysisCache.issues} />
+          <SectionList title="Анализ веса и прогресса" items={analysisCache.weightAndProgress} />
+          <SectionList title="Анализ питания" items={analysisCache.nutrition} />
+          <SectionList title="Анализ активности" items={analysisCache.activity} />
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Анализ микронутриентов</p>
+            <p className="mt-1 text-sm text-neutral-700">{analysisCache.micronutrients.text}</p>
+          </div>
+          <SectionList title="Что улучшить" items={analysisCache.improve} />
+          <SectionList title="Что сократить / убрать" items={analysisCache.reduce} />
+        </div>
+      ) : null}
+
+      <div className="rounded-xl border border-neutral-200 p-3">
+        <p className="text-xs text-neutral-500">
+          Микронутриенты: {microCoverage >= 50 ? "данные частично доступны, вывод предварительный" : "Недостаточно данных для точного анализа микронутриентов"}
+        </p>
       </div>
 
       <form onSubmit={saveWeight} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
@@ -285,16 +440,6 @@ export default function ProgressPage() {
   );
 }
 
-function getWeekKey(date: string): string {
-  const current = new Date(`${date}T00:00:00`);
-  const day = (current.getDay() + 6) % 7;
-  current.setDate(current.getDate() - day);
-  const year = current.getFullYear();
-  const first = new Date(year, 0, 1);
-  const week = Math.ceil(((current.getTime() - first.getTime()) / 86400000 + first.getDay() + 1) / 7);
-  return `${String(year).slice(2)}-W${String(week).padStart(2, "0")}`;
-}
-
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-neutral-200 p-3">
@@ -362,6 +507,43 @@ function BarChart({ points }: { points: { label: string; value: number }[] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function MacroTrendChart({
+  points,
+}: {
+  points: Array<{ label: string; protein: number; fat: number; carbs: number }>;
+}) {
+  if (points.length === 0) {
+    return <p className="text-sm text-neutral-500">Недостаточно данных.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {points.map((point) => (
+        <div key={point.label} className="rounded-lg bg-neutral-50 p-2 text-xs">
+          <p className="mb-1 text-neutral-500">{point.label}</p>
+          <p>
+            Б {formatNumber(point.protein)} · Ж {formatNumber(point.fat)} · У {formatNumber(point.carbs)}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SectionList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
+      <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+        {items.map((item) => (
+          <li key={item}>- {item}</li>
+        ))}
+      </ul>
     </div>
   );
 }

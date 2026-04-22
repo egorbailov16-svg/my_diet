@@ -9,13 +9,14 @@ import {
   dayTargetRepo,
   foodRepo,
   mealEntryRepo,
+  type DayStatus,
   recipeIngredientRepo,
   recipeRepo,
 } from "@/lib/data";
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
-import { createHealthProvider } from "@/lib/health";
+import { buildDayAnalysis } from "@/lib/ai";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -44,24 +45,6 @@ function parseWeight(value: string): number {
   return Math.round(parsed * 100) / 100;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => {
-      reject(new Error(`Timed out after ${ms}ms`));
-    }, ms);
-
-    promise
-      .then((value) => {
-        window.clearTimeout(timeoutId);
-        resolve(value);
-      })
-      .catch((error) => {
-        window.clearTimeout(timeoutId);
-        reject(error);
-      });
-  });
-}
-
 type EntryWithNutrients = {
   entry: MealEntry;
   title: string;
@@ -69,12 +52,7 @@ type EntryWithNutrients = {
 };
 
 export default function Home() {
-  const healthProvider = useMemo(() => createHealthProvider(), []);
-  const isHealthSupported = healthProvider.id !== "unavailable";
-  const todayLogRef = useRef<DayLog | null>(null);
-  const isHealthSyncingRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isHealthSyncing, setIsHealthSyncing] = useState(false);
   const [todayLog, setTodayLog] = useState<DayLog | null>(null);
   const [targets, setTargets] = useState<DayTarget[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
@@ -89,10 +67,6 @@ export default function Home() {
   const todayDate = useMemo(() => todayISODate(), []);
   const todayLabel = useMemo(() => formatTodayDateLabel(todayDate), [todayDate]);
 
-  useEffect(() => {
-    todayLogRef.current = todayLog;
-  }, [todayLog]);
-
   async function refreshDayEntries(dayLogId: string) {
     const mealEntries = await mealEntryRepo.listByDayLogId(dayLogId);
     setEntries(mealEntries);
@@ -106,6 +80,7 @@ export default function Home() {
         id: todayDate,
         date: todayDate,
         dayType: "normal",
+        status: "active",
         activeKcal: 0,
         activitySource: "manual",
         healthSyncStatus: "idle",
@@ -115,43 +90,28 @@ export default function Home() {
         updatedAt: currentTime,
       };
 
-      try {
-        const [dayLog, dayTargets, foodsList, recipesList, recipeIngredients, mealEntries] = await withTimeout(
-          Promise.all([
-            dayLogRepo.getByDate(todayDate),
-            dayTargetRepo.list(),
-            foodRepo.list(),
-            recipeRepo.list(),
-            recipeIngredientRepo.list(),
-            mealEntryRepo.listByDayLogId(todayDate),
-          ]),
-          5000,
-        );
+      const [dayLog, dayTargets, foodsList, recipesList, recipeIngredients, mealEntries] = await Promise.all([
+        dayLogRepo.getByDate(todayDate),
+        dayTargetRepo.list(),
+        foodRepo.list(),
+        recipeRepo.list(),
+        recipeIngredientRepo.list(),
+        mealEntryRepo.listByDayLogId(todayDate),
+      ]);
 
-        const safeDayLog: DayLog = dayLog ?? fallbackLog;
+      const safeDayLog: DayLog = dayLog ?? fallbackLog;
 
-        if (!dayLog) {
-          await dayLogRepo.upsert(safeDayLog);
-        }
-
-        setTodayLog(safeDayLog);
-        setTargets(dayTargets);
-        setFoods(foodsList);
-        setRecipes(recipesList);
-        setIngredients(recipeIngredients);
-        setEntries(mealEntries);
-      } catch (error) {
-        console.error("Today data load fallback activated", error);
-        // Fail-safe: render quickly even if IndexedDB is slow/unavailable.
-        setTodayLog(fallbackLog);
-        setTargets([]);
-        setFoods([]);
-        setRecipes([]);
-        setIngredients([]);
-        setEntries([]);
-      } finally {
-        setIsLoading(false);
+      if (!dayLog) {
+        await dayLogRepo.upsert(safeDayLog);
       }
+
+      setTodayLog(safeDayLog);
+      setTargets(dayTargets);
+      setFoods(foodsList);
+      setRecipes(recipesList);
+      setIngredients(recipeIngredients);
+      setEntries(mealEntries);
+      setIsLoading(false);
     }
 
     loadTodayData().catch((error: unknown) => {
@@ -199,145 +159,6 @@ export default function Home() {
 
     return calculateRemainingToDayTarget(dayTotals.consumed, currentTarget);
   }, [dayTotals, currentTarget]);
-
-  const syncHealthActiveCalories = useCallback(async (log: DayLog, requestPermission: boolean) => {
-    if (!isHealthSupported) {
-      if (log.healthSyncStatus !== "unavailable" || log.healthPermissionsState !== "unavailable") {
-        const updated: DayLog = {
-          ...log,
-          healthSyncStatus: "unavailable",
-          healthPermissionsState: "unavailable",
-          updatedAt: nowISO(),
-        };
-        setTodayLog(updated);
-        await dayLogRepo.upsert(updated);
-      }
-      return;
-    }
-
-    if (isHealthSyncingRef.current) {
-      return;
-    }
-    isHealthSyncingRef.current = true;
-
-    setIsHealthSyncing(true);
-
-    const available = await healthProvider.isAvailable();
-    if (!available) {
-      const updated: DayLog = {
-        ...log,
-        healthSyncStatus: "unavailable",
-        healthPermissionsState: "unavailable",
-        updatedAt: nowISO(),
-      };
-      setTodayLog(updated);
-      await dayLogRepo.upsert(updated);
-      setIsHealthSyncing(false);
-      isHealthSyncingRef.current = false;
-      return;
-    }
-
-    let permissionsState = await healthProvider.getPermissionsState();
-    if (requestPermission && permissionsState !== "granted") {
-      permissionsState = await healthProvider.requestPermissions();
-    }
-
-    if (permissionsState !== "granted") {
-      const updated: DayLog = {
-        ...log,
-        healthSyncStatus: "error",
-        healthPermissionsState: permissionsState,
-        updatedAt: nowISO(),
-      };
-      setTodayLog(updated);
-      await dayLogRepo.upsert(updated);
-      setIsHealthSyncing(false);
-      isHealthSyncingRef.current = false;
-      return;
-    }
-
-    try {
-      const healthData = await healthProvider.getTodayActiveCalories();
-      const merged: DayLog = {
-        ...log,
-        activeKcal: log.manualActivityOverride ? log.activeKcal : healthData.activeKcal,
-        healthSyncedActiveKcal: healthData.activeKcal,
-        activitySource: log.manualActivityOverride ? "manual" : "apple_health",
-        lastActivitySyncAt: healthData.syncedAt,
-        healthPermissionsState: healthData.permissionsState,
-        healthSyncStatus: "success",
-        updatedAt: nowISO(),
-      };
-
-      setTodayLog(merged);
-      await dayLogRepo.upsert(merged);
-    } catch {
-      const updated: DayLog = {
-        ...log,
-        healthSyncStatus: "error",
-        updatedAt: nowISO(),
-      };
-      setTodayLog(updated);
-      await dayLogRepo.upsert(updated);
-    } finally {
-      setIsHealthSyncing(false);
-      isHealthSyncingRef.current = false;
-    }
-  }, [healthProvider, isHealthSupported]);
-
-  useEffect(() => {
-    if (!isHealthSupported) {
-      return;
-    }
-
-    if (!todayLogRef.current) return;
-
-    const initialSyncId = window.setTimeout(() => {
-      const log = todayLogRef.current;
-      if (!log) return;
-      syncHealthActiveCalories(log, false).catch((error: unknown) => {
-        console.error("Health sync init failed", error);
-      });
-    }, 0);
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        const log = todayLogRef.current;
-        if (!log) return;
-        syncHealthActiveCalories(log, false).catch((error: unknown) => {
-          console.error("Health sync on visibility failed", error);
-        });
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisible);
-
-    let removeCapacitorListener: (() => void) | null = null;
-    import("@capacitor/app")
-      .then(({ App }) =>
-        App.addListener("resume", () => {
-          const log = todayLogRef.current;
-          if (!log) return;
-          syncHealthActiveCalories(log, false).catch((error: unknown) => {
-            console.error("Health sync on resume failed", error);
-          });
-        }),
-      )
-      .then((listener) => {
-        removeCapacitorListener = () => listener.remove();
-      })
-      .catch(() => {
-        removeCapacitorListener = null;
-      });
-
-    return () => {
-      window.clearTimeout(initialSyncId);
-      document.removeEventListener("visibilitychange", onVisible);
-      if (removeCapacitorListener) {
-        removeCapacitorListener();
-      }
-    };
-  }, [isHealthSupported, todayLog?.id, syncHealthActiveCalories]);
 
   const entriesWithNutrients = useMemo<EntryWithNutrients[]>(() => {
     return entries.map((entry) => {
@@ -390,7 +211,6 @@ export default function Home() {
       ...todayLog,
       activeKcal: safeValue,
       activitySource: "manual",
-      manualActivityOverride: true,
       updatedAt: nowISO(),
     };
     setTodayLog(updated);
@@ -424,16 +244,67 @@ export default function Home() {
     };
 
     await mealEntryRepo.upsert(updatedEntry);
+    if (todayLog?.status === "completed") {
+      const logUpdated = {
+        ...todayLog,
+        status: "active" as DayStatus,
+        dayAnalysis: undefined,
+        dayAnalysisAt: undefined,
+        updatedAt: nowISO(),
+      };
+      setTodayLog(logUpdated);
+      await dayLogRepo.upsert(logUpdated);
+    }
     await refreshDayEntries(entry.dayLogId);
     cancelEditingEntry();
   }
 
   async function deleteEntry(entry: MealEntry) {
     await mealEntryRepo.remove(entry.id);
+    if (todayLog?.status === "completed") {
+      const logUpdated = {
+        ...todayLog,
+        status: "active" as DayStatus,
+        dayAnalysis: undefined,
+        dayAnalysisAt: undefined,
+        updatedAt: nowISO(),
+      };
+      setTodayLog(logUpdated);
+      await dayLogRepo.upsert(logUpdated);
+    }
     await refreshDayEntries(entry.dayLogId);
     if (editingEntryId === entry.id) {
       cancelEditingEntry();
     }
+  }
+
+  async function finishDay() {
+    if (!todayLog || !dayTotals) return;
+    const nextAnalysis = buildDayAnalysis({
+      dayLog: todayLog,
+      target: currentTarget,
+      consumed: dayTotals.consumed,
+    });
+    const updated: DayLog = {
+      ...todayLog,
+      status: "completed",
+      dayAnalysis: nextAnalysis,
+      dayAnalysisAt: nowISO(),
+      updatedAt: nowISO(),
+    };
+    setTodayLog(updated);
+    await dayLogRepo.upsert(updated);
+  }
+
+  async function reopenDay() {
+    if (!todayLog) return;
+    const updated: DayLog = {
+      ...todayLog,
+      status: "active",
+      updatedAt: nowISO(),
+    };
+    setTodayLog(updated);
+    await dayLogRepo.upsert(updated);
   }
 
   if (isLoading || !todayLog) {
@@ -472,43 +343,18 @@ export default function Home() {
       </div>
 
       <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <label htmlFor="active-kcal" className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Активные ккал
-        </label>
-        <input
-          id="active-kcal"
-          type="number"
-          min={0}
-          value={todayLog.activeKcal}
-          onChange={(event) => updateActiveKcal(Number(event.target.value))}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
-        />
-        <div className="mt-2 space-y-1 text-xs text-neutral-600">
-          <p>Источник: {todayLog.activitySource === "apple_health" ? "Apple Health" : "вручную"}</p>
-          <p>Статус синка: {todayLog.healthSyncStatus ?? "idle"}</p>
-          <p>Разрешение: {todayLog.healthPermissionsState ?? "unknown"}</p>
-          <p>Синхронизировано: {todayLog.lastActivitySyncAt ? new Date(todayLog.lastActivitySyncAt).toLocaleString("ru-RU") : "—"}</p>
-          {!isHealthSupported ? <p>Apple Health работает только в iOS-приложении через Capacitor.</p> : null}
-          {todayLog.manualActivityOverride ? <p className="text-amber-700">Включен ручной override активных ккал.</p> : null}
-        </div>
-        <button
-          type="button"
-          onClick={() => syncHealthActiveCalories(todayLog, true)}
-          disabled={isHealthSyncing || !isHealthSupported}
-          className="mt-2 h-10 w-full rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-800 disabled:opacity-40"
-        >
-          {isHealthSyncing ? "Синхронизация..." : isHealthSupported ? "Обновить из Apple Health" : "Apple Health недоступен в вебе"}
-        </button>
-      </div>
-
-      <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Съедено</p>
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Итоги за день</p>
         <div className="grid grid-cols-2 gap-3">
           <Stat label="Калории" value={dayTotals?.consumed.kcal ?? 0} unit="ккал" />
           <Stat label="Белки" value={dayTotals?.consumed.protein ?? 0} unit="г" />
           <Stat label="Жиры" value={dayTotals?.consumed.fat ?? 0} unit="г" />
           <Stat label="Углеводы" value={dayTotals?.consumed.carbs ?? 0} unit="г" />
+          <Stat label="Активные ккал" value={todayLog.activeKcal} unit="ккал" />
         </div>
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Прогресс по цели</p>
         {currentTarget && dayTotals ? (
           <div className="mt-3 space-y-2">
             <ProgressRow
@@ -532,6 +378,7 @@ export default function Home() {
             />
           </div>
         ) : null}
+        {!currentTarget ? <p className="text-sm text-neutral-500">Цели дня не найдены.</p> : null}
       </div>
 
       <div className="rounded-xl border border-neutral-200 p-3">
@@ -656,6 +503,58 @@ export default function Home() {
           </ul>
         )}
       </div>
+
+      <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
+        <label htmlFor="active-kcal" className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Активные ккал (ручной ввод)
+        </label>
+        <input
+          id="active-kcal"
+          type="number"
+          min={0}
+          value={todayLog.activeKcal}
+          onChange={(event) => updateActiveKcal(Number(event.target.value))}
+          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+        />
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Завершение дня</p>
+        <p className="mb-3 text-sm text-neutral-600">Статус: {todayLog.status === "completed" ? "завершен" : "активный"}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={finishDay} className="h-11 rounded-lg bg-neutral-900 text-sm font-semibold text-white">
+            Закончить день
+          </button>
+          <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
+            Открыть снова
+          </button>
+        </div>
+      </div>
+
+      {todayLog.dayAnalysis ? (
+        <div className="rounded-xl border border-neutral-200 p-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Итог дня</p>
+          <p className="text-sm text-neutral-800">{todayLog.dayAnalysis.summary}</p>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Что хорошо</p>
+          <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+            {todayLog.dayAnalysis.good.map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Что плохо</p>
+          <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+            {todayLog.dayAnalysis.issues.map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Что исправить завтра</p>
+          <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+            {todayLog.dayAnalysis.nextDayActions.map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <Link
         href="/add-entry"

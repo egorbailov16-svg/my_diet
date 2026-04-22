@@ -5,6 +5,7 @@ import type {
   Food,
   MealEntry,
   Profile,
+  PeriodAnalysis,
   RecentItem,
   Recipe,
   RecipeIngredient,
@@ -72,4 +73,10 @@ export const weightLogRepo = {
 export const recentItemRepo = {
   list: () => getAll("recentItems"),
   upsert: (entry: RecentItem) => putOne("recentItems", entry),
+};
+
+export const periodAnalysisRepo = {
+  list: () => getAll("periodAnalyses"),
+  getById: (id: string) => getById("periodAnalyses", id),
+  upsert: (entry: PeriodAnalysis) => putOne("periodAnalyses", entry),
 };

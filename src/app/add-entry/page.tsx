@@ -293,6 +293,7 @@ export default function AddEntryPage() {
         id: date,
         date,
         dayType: "normal",
+        status: "active",
         activeKcal: 0,
         activitySource: "manual",
         healthSyncStatus: "idle",
@@ -304,6 +305,14 @@ export default function AddEntryPage() {
 
     if (!existingDayLog) {
       await dayLogRepo.upsert(dayLog);
+    } else if (existingDayLog.status === "completed") {
+      await dayLogRepo.upsert({
+        ...existingDayLog,
+        status: "active",
+        dayAnalysis: undefined,
+        dayAnalysisAt: undefined,
+        updatedAt: timestamp,
+      });
     }
 
     for (const draftItem of validDraft) {
@@ -390,6 +399,7 @@ export default function AddEntryPage() {
         id: date,
         date,
         dayType: "normal",
+        status: "active",
         activeKcal: 0,
         activitySource: "manual",
         healthSyncStatus: "idle",
@@ -401,6 +411,14 @@ export default function AddEntryPage() {
 
     if (!existingDayLog) {
       await dayLogRepo.upsert(dayLog);
+    } else if (existingDayLog.status === "completed") {
+      await dayLogRepo.upsert({
+        ...existingDayLog,
+        status: "active",
+        dayAnalysis: undefined,
+        dayAnalysisAt: undefined,
+        updatedAt: timestamp,
+      });
     }
 
     const mealEntry: MealEntry = {
@@ -439,8 +457,8 @@ export default function AddEntryPage() {
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Добавление</p>
-        <h1 className="text-xl font-semibold">Быстро добавить еду</h1>
+        <p className="text-xs uppercase tracking-wide text-neutral-500">Добавить прием</p>
+        <h1 className="text-xl font-semibold">Добавить прием пищи</h1>
       </header>
 
       <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">

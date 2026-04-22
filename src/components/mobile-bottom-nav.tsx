@@ -5,11 +5,10 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/", label: "Сегодня" },
-  { href: "/add-entry", label: "Добавить" },
+  { href: "/progress", label: "Отчет" },
+  { href: "/recipes", label: "Добавить блюдо" },
   { href: "/foods", label: "Продукты" },
-  { href: "/recipes", label: "Рецепты" },
-  { href: "/progress", label: "Прогресс" },
-  { href: "/settings", label: "Настройки" },
+  { href: "/add-entry", label: "Добавить прием" },
 ];
 
 export function MobileBottomNav() {

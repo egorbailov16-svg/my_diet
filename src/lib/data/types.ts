@@ -8,6 +8,7 @@ export type RecentItemType = "food" | "recipe";
 export type ActivitySource = "manual" | "apple_health";
 export type HealthSyncStatus = "idle" | "syncing" | "success" | "error" | "unavailable";
 export type HealthPermissionsState = "unknown" | "granted" | "denied" | "unavailable";
+export type DayStatus = "active" | "completed";
 
 export type NutrientsPer100g = {
   kcal: number;
@@ -58,6 +59,15 @@ export type DayLog = {
   healthPermissionsState?: HealthPermissionsState;
   healthSyncedActiveKcal?: number;
   notes?: string;
+  status?: DayStatus;
+  dayAnalysis?: {
+    summary: string;
+    good: string[];
+    issues: string[];
+    nextDayActions: string[];
+    limitations?: string[];
+  };
+  dayAnalysisAt?: ISODateTime;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 };
@@ -77,6 +87,8 @@ export type Food = {
   };
   note?: string;
   nutrientsPer100g: NutrientsPer100g;
+  micronutrientsPer100g?: Record<string, number>;
+  vitaminsPer100g?: Record<string, number>;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 };
@@ -127,6 +139,28 @@ export type RecentItem = {
   lastAmountG?: number;
 };
 
+export type PeriodRangeDays = 7 | 14 | 30;
+
+export type PeriodAnalysis = {
+  id: string;
+  rangeDays: PeriodRangeDays;
+  startDate: ISODate;
+  endDate: ISODate;
+  summary: string;
+  good: string[];
+  issues: string[];
+  weightAndProgress: string[];
+  nutrition: string[];
+  activity: string[];
+  micronutrients: {
+    enoughData: boolean;
+    text: string;
+  };
+  improve: string[];
+  reduce: string[];
+  generatedAt: ISODateTime;
+};
+
 export type DBSchema = {
   profile: Profile;
   dayTargets: DayTarget;
@@ -137,4 +171,5 @@ export type DBSchema = {
   mealEntries: MealEntry;
   weightLogs: WeightLog;
   recentItems: RecentItem;
+  periodAnalyses: PeriodAnalysis;
 };
