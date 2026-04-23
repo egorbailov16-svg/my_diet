@@ -13,8 +13,8 @@
   --accent-strong: #7cff4f;
   --accent-2: #4d8dff;
   --danger: #ff5a6b;
-  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.45);
-  --shadow-card: 0 8px 18px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 16px 36px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 10px 24px rgba(0, 0, 0, 0.42);
   --glow-accent: 0 0 0 1px rgba(132, 225, 75, 0.18), 0 0 26px rgba(132, 225, 75, 0.22);
 }
 
@@ -35,6 +35,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
   letter-spacing: 0.01em;
+  background-image: radial-gradient(circle at 10% -10%, rgba(77, 141, 255, 0.08), transparent 38%),
+    radial-gradient(circle at 90% -5%, rgba(132, 225, 75, 0.08), transparent 32%);
+  background-attachment: fixed;
 }
 
 * {
@@ -47,8 +50,9 @@ textarea {
   background: #0a1017;
   color: var(--foreground);
   border-color: var(--border);
-  border-radius: 16px;
+  border-radius: 18px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  min-height: 48px;
 }
 
 input::placeholder,
@@ -58,15 +62,27 @@ textarea::placeholder {
 
 .app-card {
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  background: linear-gradient(180deg, rgba(15, 20, 28, 0.96), rgba(11, 16, 23, 0.98));
   border-radius: 24px;
   box-shadow: var(--shadow-card);
+  position: relative;
+}
+
+.app-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0.8;
 }
 
 .app-subcard {
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: #0a1017;
+  background: linear-gradient(180deg, #0f1722, #0a111b);
   border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .screen-title {
@@ -85,18 +101,39 @@ textarea::placeholder {
   background: linear-gradient(180deg, #95f05f, var(--accent));
   color: #071004;
   box-shadow: var(--glow-accent);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.accent-btn:hover {
+  transform: translateY(-1px) scale(1.01);
+  filter: saturate(1.04);
+}
+
+.accent-btn:active {
+  transform: scale(0.99);
 }
 
 .secondary-btn {
-  background: #0d1520;
+  background: #0f1723;
   color: #d9e3f2;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.secondary-btn:hover {
+  background: #121d2b;
+  transform: translateY(-1px);
 }
 
 .danger-btn {
-  background: rgba(242, 72, 92, 0.12);
+  background: transparent;
   color: #ff7789;
   border: 1px solid rgba(255, 90, 107, 0.28);
+  transition: background 0.18s ease;
+}
+
+.danger-btn:hover {
+  background: rgba(242, 72, 92, 0.1);
 }
 
 .pill-segment {
@@ -110,11 +147,13 @@ textarea::placeholder {
   height: 42px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(14, 20, 31, 0.92);
+  background: rgba(14, 20, 31, 0.76);
   color: #d4dfef;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 input:focus,
@@ -122,5 +161,30 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: rgba(132, 225, 75, 0.55);
-  box-shadow: 0 0 0 3px rgba(132, 225, 75, 0.14);
+  box-shadow: 0 0 0 3px rgba(132, 225, 75, 0.16), 0 0 20px rgba(132, 225, 75, 0.14);
+}
+
+.macro-kcal {
+  color: #f5f7fa;
+}
+
+.macro-protein {
+  color: #84e14b;
+}
+
+.macro-fat {
+  color: #ff5a6b;
+}
+
+.macro-carbs {
+  color: #4d8dff;
+}
+
+.food-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #101722;
 }

@@ -55,6 +55,10 @@ function sourceLabel(source: FoodSource): string {
   return "external";
 }
 
+function foodImageUrl(name: string): string {
+  return `https://source.unsplash.com/featured/?food,${encodeURIComponent(name)}`;
+}
+
 export default function FoodsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [foods, setFoods] = useState<Food[]>([]);
@@ -386,7 +390,17 @@ export default function FoodsPage() {
           filteredFoods.map((food) => (
             <article key={food.id} className="app-card p-3">
               <div className="mb-2 flex items-start justify-between gap-3">
-                <div>
+                <div className="flex items-start gap-3">
+                  <img
+                    src={foodImageUrl(food.name)}
+                    alt={food.name}
+                    className="food-thumb"
+                    loading="lazy"
+                    onError={(event) => {
+                      event.currentTarget.src = "https://source.unsplash.com/featured/?healthy-food";
+                    }}
+                  />
+                  <div>
                   <h2 className="text-sm font-semibold">{food.name}</h2>
                   <span
                     className={`mt-1 inline-block rounded-xl px-2 py-1 text-[11px] font-medium ${
@@ -399,13 +413,14 @@ export default function FoodsPage() {
                   >
                     {sourceLabel(food.source)}
                   </span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => startEdit(food)}
                     disabled={food.source === "external" || !adminUnlocked}
-                    className="h-10 rounded-xl secondary-btn px-3 text-xs font-semibold disabled:opacity-40"
+                    className="h-8 rounded-lg secondary-btn px-2.5 text-[11px] font-semibold disabled:opacity-40"
                   >
                     Изм.
                   </button>
@@ -413,16 +428,18 @@ export default function FoodsPage() {
                     type="button"
                     onClick={() => onDelete(food)}
                     disabled={food.source === "external" || !adminUnlocked}
-                    className="h-10 rounded-xl danger-btn px-3 text-xs font-semibold disabled:opacity-40"
+                    className="h-8 rounded-lg danger-btn px-2.5 text-[11px] font-semibold disabled:opacity-40"
                   >
                     Удал.
                   </button>
                 </div>
               </div>
 
+              <p className="text-sm font-semibold text-[#eef5ff]">{food.nutrientsPer100g.kcal} ккал / 100 г</p>
               <p className="text-xs text-[#b8c7da]">
-                {food.nutrientsPer100g.kcal} ккал · Б {food.nutrientsPer100g.protein} · Ж {food.nutrientsPer100g.fat} · У{" "}
-                {food.nutrientsPer100g.carbs} (на 100 г)
+                <span className="macro-protein">Б {food.nutrientsPer100g.protein}</span> ·{" "}
+                <span className="macro-fat">Ж {food.nutrientsPer100g.fat}</span> ·{" "}
+                <span className="macro-carbs">У {food.nutrientsPer100g.carbs}</span>
               </p>
               {food.note ? <p className="mt-2 text-xs text-[#8da1bb]">{food.note}</p> : null}
             </article>

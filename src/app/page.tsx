@@ -580,9 +580,9 @@ export default function Home() {
 
 function Stat({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
-    <div className="rounded-lg bg-[#0b1320] p-3">
+    <div className="app-subcard p-3">
       <p className="text-xs text-[#8da1bb]">{label}</p>
-      <p className="mt-1 text-lg font-semibold">
+      <p className="mt-1 text-[1.35rem] font-semibold leading-none tracking-[-0.01em]">
         {formatNumber(value)} {unit}
       </p>
     </div>
@@ -601,6 +601,14 @@ function Row({ label, value }: { label: string; value: string }) {
 function ProgressRow({ label, value, target, unit }: { label: string; value: number; target: number; unit: string }) {
   const safeTarget = target > 0 ? target : 1;
   const ratio = Math.max(0, Math.min(1, value / safeTarget));
+  const progressColor =
+    label === "Белки"
+      ? "linear-gradient(90deg,#73df3f,#84e14b)"
+      : label === "Жиры"
+        ? "linear-gradient(90deg,#ff4d5e,#ff6a79)"
+        : label === "Углеводы"
+          ? "linear-gradient(90deg,#3e82ff,#5ca1ff)"
+          : "linear-gradient(90deg,#84e14b,#a2ff72)";
 
   return (
     <div className="space-y-1">
@@ -610,8 +618,11 @@ function ProgressRow({ label, value, target, unit }: { label: string; value: num
           {formatNumber(value)} / {formatNumber(target)} {unit}
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded bg-[#223149]">
-        <div className="h-full rounded bg-[#8ff65b]" style={{ width: `${ratio * 100}%` }} />
+      <div className="h-3 w-full overflow-hidden rounded-full bg-[#1b2a3f]">
+        <div
+          className="h-full rounded-full shadow-[0_0_14px_rgba(132,225,75,0.35)]"
+          style={{ width: `${ratio * 100}%`, background: progressColor }}
+        />
       </div>
     </div>
   );

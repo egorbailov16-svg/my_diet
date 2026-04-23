@@ -46,6 +46,10 @@ function format(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+function recipeImageUrl(name: string): string {
+  return `https://source.unsplash.com/featured/?meal,${encodeURIComponent(name)}`;
+}
+
 export default function RecipesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [foods, setFoods] = useState<Food[]>([]);
@@ -356,18 +360,29 @@ export default function RecipesPage() {
             return (
               <article key={recipe.id} className="app-card p-3">
                 <div className="mb-2 flex items-start justify-between gap-3">
-                  <div>
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={recipeImageUrl(recipe.name)}
+                      alt={recipe.name}
+                      className="food-thumb"
+                      loading="lazy"
+                      onError={(event) => {
+                        event.currentTarget.src = "https://source.unsplash.com/featured/?dish,food";
+                      }}
+                    />
+                    <div>
                     <h2 className="text-sm font-semibold">{recipe.name}</h2>
                     <p className="text-xs text-[#8da1bb]">
                       Ингредиентов: {recipeIngredients.length} · Вес блюда: {recipe.cookedWeightG ?? "не указан"} г
                     </p>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => onEditRecipe(recipe)}
                       disabled={!adminUnlocked}
-                      className="h-10 rounded-xl secondary-btn px-3 text-xs font-semibold"
+                      className="h-8 rounded-lg secondary-btn px-2.5 text-[11px] font-semibold"
                     >
                       Изм.
                     </button>
@@ -375,15 +390,17 @@ export default function RecipesPage() {
                       type="button"
                       onClick={() => onDeleteRecipe(recipe.id)}
                       disabled={!adminUnlocked}
-                      className="h-10 rounded-xl danger-btn px-3 text-xs font-semibold"
+                      className="h-8 rounded-lg danger-btn px-2.5 text-[11px] font-semibold"
                     >
                       Удал.
                     </button>
                   </div>
                 </div>
-                <p className="text-xs text-[#e8f0fc]">
-                  Всего: {format(stats.totalForRecipe.kcal)} ккал · Б {format(stats.totalForRecipe.protein)} · Ж {format(stats.totalForRecipe.fat)}
-                  {" · "}У {format(stats.totalForRecipe.carbs)}
+                <p className="text-sm font-semibold text-[#e8f0fc]">Всего: {format(stats.totalForRecipe.kcal)} ккал</p>
+                <p className="text-xs text-[#b8c7da]">
+                  <span className="macro-protein">Б {format(stats.totalForRecipe.protein)}</span> ·{" "}
+                  <span className="macro-fat">Ж {format(stats.totalForRecipe.fat)}</span> ·{" "}
+                  <span className="macro-carbs">У {format(stats.totalForRecipe.carbs)}</span>
                 </p>
                 <p className="mt-1 text-xs text-[#b8c7da]">
                   На 100 г: {format(stats.per100g.kcal)} ккал · Б {format(stats.per100g.protein)} · Ж {format(stats.per100g.fat)} · У{" "}
