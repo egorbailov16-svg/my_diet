@@ -27,6 +27,7 @@ export type NutrientsTotal = {
 export type Profile = {
   id: "profile";
   name: string;
+  adminPinHash?: string;
   heightCm?: number;
   currentWeightKg?: number;
   goalWeightKg?: number;

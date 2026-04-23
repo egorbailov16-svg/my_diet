@@ -1,6 +1,7 @@
 "use client";
 
 import { foodRepo, searchExternalFoods } from "@/lib/data";
+import { isAdminUnlocked } from "@/lib/admin/local-admin";
 import type { ExternalFoodSearchResult, Food, FoodSource } from "@/lib/data";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -66,6 +67,7 @@ export default function FoodsPage() {
   const [externalError, setExternalError] = useState("");
   const [debouncedExternalQuery, setDebouncedExternalQuery] = useState("");
   const [activeExternalQuery, setActiveExternalQuery] = useState("");
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
   const externalCacheRef = useRef<Map<string, { ts: number; results: ExternalFoodSearchResult[] }>>(new Map());
   const requestTokenRef = useRef(0);
 
@@ -73,6 +75,7 @@ export default function FoodsPage() {
     loadFoods()
       .catch((error: unknown) => console.error("Failed to load foods", error))
       .finally(() => setIsLoading(false));
+    setAdminUnlocked(isAdminUnlocked());
   }, []);
 
   async function loadFoods() {
@@ -114,6 +117,7 @@ export default function FoodsPage() {
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!adminUnlocked) return;
 
     const timestamp = nowISO();
     const currentEditing = editingId ? foods.find((food) => food.id === editingId) : null;
@@ -141,6 +145,7 @@ export default function FoodsPage() {
   }
 
   async function onDelete(food: Food) {
+    if (!adminUnlocked) return;
     if (food.source === "external") return;
     await foodRepo.remove(food.id);
     await loadFoods();
@@ -196,6 +201,7 @@ export default function FoodsPage() {
   }, [debouncedExternalQuery]);
 
   async function importExternalFood(item: ExternalFoodSearchResult) {
+    if (!adminUnlocked) return;
     const externalRefId = `${item.provider}:${item.externalId}`;
     const existing = foods.find((food) => food.externalRefId === externalRefId);
     if (existing) {
@@ -250,6 +256,7 @@ export default function FoodsPage() {
         <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
           {editingId ? "Редактировать продукт" : "Добавить продукт"}
         </p>
+        {!adminUnlocked ? <p className="text-xs text-amber-700">Только админ может менять базу. Включи режим в Настройках.</p> : null}
 
         <input
           type="text"
@@ -287,7 +294,7 @@ export default function FoodsPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <button type="submit" className="h-12 rounded-lg bg-neutral-900 text-sm font-semibold text-white">
+          <button type="submit" disabled={!adminUnlocked} className="h-12 rounded-lg bg-neutral-900 text-sm font-semibold text-white disabled:opacity-40">
             {editingId ? "Сохранить" : "Добавить"}
           </button>
           <button type="button" onClick={resetForm} className="h-12 rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
@@ -333,8 +340,8 @@ export default function FoodsPage() {
                   <button
                     type="button"
                     onClick={() => importExternalFood(item)}
-                    disabled={!item.hasCompleteNutrients}
-                    className="h-10 rounded-lg bg-neutral-900 px-3 text-xs font-semibold text-white"
+                    disabled={!item.hasCompleteNutrients || !adminUnlocked}
+                    className="h-10 rounded-lg bg-neutral-900 px-3 text-xs font-semibold text-white disabled:opacity-40"
                   >
                     Импорт
                   </button>
@@ -387,7 +394,7 @@ export default function FoodsPage() {
                   <button
                     type="button"
                     onClick={() => startEdit(food)}
-                    disabled={food.source === "external"}
+                    disabled={food.source === "external" || !adminUnlocked}
                     className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800 disabled:opacity-40"
                   >
                     Изм.
@@ -395,7 +402,7 @@ export default function FoodsPage() {
                   <button
                     type="button"
                     onClick={() => onDelete(food)}
-                    disabled={food.source === "external"}
+                    disabled={food.source === "external" || !adminUnlocked}
                     className="h-10 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700 disabled:opacity-40"
                   >
                     Удал.

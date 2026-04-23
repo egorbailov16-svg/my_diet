@@ -1,6 +1,7 @@
 "use client";
 
 import { calculateRecipePer100g, calculateRecipePortionNutrients, foodRepo, recipeIngredientRepo, recipeRepo } from "@/lib/data";
+import { isAdminUnlocked } from "@/lib/admin/local-admin";
 import type { Food, Recipe, RecipeIngredient } from "@/lib/data";
 import { useEffect, useMemo, useState } from "react";
 
@@ -53,11 +54,13 @@ export default function RecipesPage() {
   const [query, setQuery] = useState("");
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [form, setForm] = useState<RecipeForm>(emptyForm);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
 
   useEffect(() => {
     loadData()
       .catch((error: unknown) => console.error("Failed to load recipes page data", error))
       .finally(() => setIsLoading(false));
+    setAdminUnlocked(isAdminUnlocked());
   }, []);
 
   async function loadData() {
@@ -149,6 +152,7 @@ export default function RecipesPage() {
 
   async function onSaveRecipe(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!adminUnlocked) return;
 
     const name = form.name.trim();
     if (!name) return;
@@ -206,6 +210,7 @@ export default function RecipesPage() {
   }
 
   async function onDeleteRecipe(recipeId: string) {
+    if (!adminUnlocked) return;
     await recipeIngredientRepo.removeByRecipeId(recipeId);
     await recipeRepo.remove(recipeId);
     await loadData();
@@ -226,6 +231,7 @@ export default function RecipesPage() {
         <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
           {editingRecipeId ? "Редактирование рецепта" : "Новый рецепт"}
         </p>
+        {!adminUnlocked ? <p className="text-xs text-amber-700">Только админ может менять рецепты. Включи режим в Настройках.</p> : null}
 
         <input
           type="text"
@@ -272,7 +278,7 @@ export default function RecipesPage() {
               />
             </div>
           ))}
-          <button type="button" onClick={addIngredientRow} className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold">
+          <button type="button" onClick={addIngredientRow} disabled={!adminUnlocked} className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold disabled:opacity-40">
             + Добавить ингредиент
           </button>
         </div>
@@ -318,7 +324,7 @@ export default function RecipesPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <button type="submit" className="h-12 rounded-lg bg-neutral-900 text-sm font-semibold text-white">
+          <button type="submit" disabled={!adminUnlocked} className="h-12 rounded-lg bg-neutral-900 text-sm font-semibold text-white disabled:opacity-40">
             {editingRecipeId ? "Сохранить" : "Сохранить рецепт"}
           </button>
           <button type="button" onClick={resetForm} className="h-12 rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
@@ -360,6 +366,7 @@ export default function RecipesPage() {
                     <button
                       type="button"
                       onClick={() => onEditRecipe(recipe)}
+                      disabled={!adminUnlocked}
                       className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800"
                     >
                       Изм.
@@ -367,6 +374,7 @@ export default function RecipesPage() {
                     <button
                       type="button"
                       onClick={() => onDeleteRecipe(recipe.id)}
+                      disabled={!adminUnlocked}
                       className="h-10 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700"
                     >
                       Удал.
