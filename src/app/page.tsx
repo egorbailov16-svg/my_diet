@@ -314,8 +314,18 @@ export default function Home() {
   return (
     <section className="space-y-4 pb-2">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Сегодня</p>
-        <h1 className="text-xl font-semibold capitalize">{todayLabel}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-neutral-500">Сегодня</p>
+            <h1 className="text-xl font-semibold capitalize">{todayLabel}</h1>
+          </div>
+          <Link
+            href="/settings"
+            className="flex h-10 items-center justify-center rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800"
+          >
+            Настройки
+          </Link>
+        </div>
       </header>
 
       <div className="rounded-xl border border-neutral-200 p-3">
