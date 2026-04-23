@@ -1,7 +1,7 @@
 "use client";
 
 import { dayTargetRepo, profileRepo } from "@/lib/data";
-import { hashPin, isAdminUnlocked, setAdminUnlocked } from "@/lib/admin/local-admin";
+import { isAdminUnlocked, setAdminUnlocked, validateAdminCredentials } from "@/lib/admin/local-admin";
 import type { DayTarget, Profile } from "@/lib/data";
 import { useEffect, useMemo, useState } from "react";
 
@@ -41,9 +41,8 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [targets, setTargets] = useState<DayTarget[]>([]);
   const [adminUnlocked, setAdminUnlockedState] = useState(false);
-  const [newPin, setNewPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [unlockPin, setUnlockPin] = useState("");
+  const [adminLogin, setAdminLogin] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
 
   const [profileForm, setProfileForm] = useState<ProfileForm>({
@@ -171,49 +170,23 @@ export default function SettingsPage() {
     setIsSaving(false);
   }
 
-  async function setupAdminPin() {
-    if (!profile) return;
-    if (newPin.length < 4) {
-      setAdminMessage("PIN должен быть минимум 4 символа.");
-      return;
-    }
-    if (newPin !== confirmPin) {
-      setAdminMessage("PIN и подтверждение не совпадают.");
-      return;
-    }
-    const updatedProfile: Profile = {
-      ...profile,
-      adminPinHash: hashPin(newPin),
-      updatedAt: nowISO(),
-    };
-    await profileRepo.upsert(updatedProfile);
-    setProfile(updatedProfile);
-    setAdminUnlocked(true);
-    setAdminUnlockedState(true);
-    setNewPin("");
-    setConfirmPin("");
-    setAdminMessage("PIN администратора сохранен.");
-  }
-
   function lockAdminMode() {
     setAdminUnlocked(false);
     setAdminUnlockedState(false);
-    setUnlockPin("");
+    setAdminLogin("");
+    setAdminPassword("");
     setAdminMessage("Режим администратора выключен на этом устройстве.");
   }
 
-  function unlockAdminMode() {
-    if (!profile?.adminPinHash) {
-      setAdminMessage("Сначала задай PIN администратора.");
-      return;
-    }
-    if (hashPin(unlockPin) !== profile.adminPinHash) {
-      setAdminMessage("Неверный PIN.");
+  function loginAdminMode() {
+    if (!validateAdminCredentials(adminLogin.trim(), adminPassword)) {
+      setAdminMessage("Неверный логин или пароль.");
       return;
     }
     setAdminUnlocked(true);
     setAdminUnlockedState(true);
-    setUnlockPin("");
+    setAdminLogin("");
+    setAdminPassword("");
     setAdminMessage("Режим администратора включен.");
   }
 
@@ -255,16 +228,7 @@ export default function SettingsPage() {
 
         <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
           <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Администратор</p>
-          {!profile?.adminPinHash ? (
-            <div className="space-y-2">
-              <p className="text-xs text-neutral-600">Задай PIN. Только админ сможет редактировать базу продуктов и рецептов.</p>
-              <Field label="Новый PIN" value={newPin} onChange={setNewPin} />
-              <Field label="Подтверди PIN" value={confirmPin} onChange={setConfirmPin} />
-              <button type="button" onClick={setupAdminPin} className="h-12 w-full rounded-lg bg-neutral-900 text-sm font-semibold text-white">
-                Сохранить PIN администратора
-              </button>
-            </div>
-          ) : adminUnlocked ? (
+          {adminUnlocked ? (
             <div className="space-y-2">
               <p className="text-sm text-neutral-700">Режим администратора активен на этом устройстве.</p>
               <button type="button" onClick={lockAdminMode} className="h-12 w-full rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
@@ -273,9 +237,10 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-neutral-600">Введи PIN для доступа к редактированию продуктов и рецептов.</p>
-              <Field label="PIN администратора" value={unlockPin} onChange={setUnlockPin} />
-              <button type="button" onClick={unlockAdminMode} className="h-12 w-full rounded-lg bg-neutral-900 text-sm font-semibold text-white">
+              <p className="text-xs text-neutral-600">Введи логин и пароль админа для доступа к редактированию продуктов и рецептов.</p>
+              <Field label="Логин" value={adminLogin} onChange={setAdminLogin} />
+              <Field label="Пароль" value={adminPassword} onChange={setAdminPassword} />
+              <button type="button" onClick={loginAdminMode} className="h-12 w-full rounded-lg bg-neutral-900 text-sm font-semibold text-white">
                 Включить режим администратора
               </button>
             </div>

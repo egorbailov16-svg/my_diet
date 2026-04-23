@@ -1,14 +1,11 @@
 "use client";
 
 const ADMIN_UNLOCKED_KEY = "mydiet_admin_unlocked";
+export const ADMIN_LOGIN = "admin";
+export const ADMIN_PASSWORD = "admin";
 
-export function hashPin(pin: string): string {
-  let hash = 0;
-  for (let i = 0; i < pin.length; i += 1) {
-    hash = (hash << 5) - hash + pin.charCodeAt(i);
-    hash |= 0;
-  }
-  return `pin_${Math.abs(hash)}`;
+export function validateAdminCredentials(login: string, password: string): boolean {
+  return login === ADMIN_LOGIN && password === ADMIN_PASSWORD;
 }
 
 export function isAdminUnlocked(): boolean {
