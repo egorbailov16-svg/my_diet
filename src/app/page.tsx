@@ -494,28 +494,28 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="hero-card px-4 pb-4 pt-5">
-        <div className="relative min-h-[350px]">
-          <div className="absolute left-0 top-[112px] w-[82px]">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(255,95,117,0.45)] bg-[rgba(255,62,87,0.12)] text-[#ff6a7c] shadow-[0_0_22px_rgba(255,68,96,0.25)]">
-              <Flame size={16} />
+      <div className="hero-card px-3 pb-3 pt-3.5">
+        <div className="relative min-h-[270px]">
+          <div className="absolute left-0 top-[96px] w-[68px]">
+            <div className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(255,95,117,0.45)] bg-[rgba(255,62,87,0.12)] text-[#ff6a7c] shadow-[0_0_18px_rgba(255,68,96,0.22)]">
+              <Flame size={14} />
             </div>
-            <p className="mt-2 text-[10px] uppercase tracking-[0.08em] text-[#95a8bf]">Activity calories</p>
-            <p className="mt-1 text-[2rem] font-bold leading-none text-[#ff5e74]">{formatNumber(todayLog.activeKcal)}</p>
-            <p className="text-xs text-[#8c9eb5]">kcal</p>
+            <p className="mt-1.5 text-[9px] uppercase leading-tight tracking-[0.07em] text-[#95a8bf]">Activity calories</p>
+            <p className="mt-1 text-[1.45rem] font-bold leading-none text-[#ff5e74]">{formatNumber(todayLog.activeKcal)}</p>
+            <p className="text-[10px] text-[#8c9eb5]">kcal</p>
           </div>
 
           <div className="mx-auto w-fit">
             <HeroCaloriesRing consumed={dayTotals?.consumed.kcal ?? 0} target={calorieTarget} ratio={calorieProgressRatio} />
           </div>
 
-          <div className="absolute right-1 top-[138px] flex w-[74px] flex-col items-center text-center">
+          <div className="absolute right-0 top-[110px] flex w-[68px] flex-col items-center text-center">
             <GoalMiniRing ratio={calorieProgressRatio} />
-            <p className="mt-2 text-[10px] uppercase leading-tight tracking-[0.08em] text-[#8da1bb]">Goal Progress</p>
+            <p className="mt-1.5 text-[9px] uppercase leading-tight tracking-[0.07em] text-[#8da1bb]">Goal Progress</p>
           </div>
         </div>
 
-        <div className="mt-[-10px] grid grid-cols-3 gap-1.5">
+        <div className="mt-[-6px] grid grid-cols-3 gap-1.5">
           {macroStats.map((item) => (
             <MacroMiniRing key={item.key} label={item.label} consumed={item.consumed} target={item.target} color={item.color} />
           ))}
@@ -530,9 +530,9 @@ export default function Home() {
         {entriesWithNutrients.length === 0 ? (
           <p className="text-sm text-[#9db0c8]">Пока нет записей. Добавь первый прием пищи.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {entriesWithNutrients.map(({ entry, title, nutrients }) => (
-              <li key={entry.id} className="food-row-card px-2.5 py-2.5">
+              <li key={entry.id} className="food-row-card px-2.5 py-2">
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="flex min-w-0 items-start gap-2.5">
                     <FoodThumbnail
@@ -542,12 +542,12 @@ export default function Home() {
                           ? getExternalImageUrl(foodsById.get(entry.sourceId)) ?? `https://source.unsplash.com/featured/?food,${encodeURIComponent(title)}`
                           : `https://source.unsplash.com/featured/?food,${encodeURIComponent(title)}`
                       }
-                      size={48}
+                      size={42}
                     />
                     <div className="min-w-0">
-                      <p className="truncate text-[15px] font-semibold leading-tight">{title}</p>
-                      <p className="mt-0.5 text-[11px] text-[#8da1bb]">{mealTypeLabel(entry.mealType)} · {entry.amountG} г</p>
-                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold">
+                      <p className="truncate text-[14px] font-semibold leading-tight">{title}</p>
+                      <p className="mt-0.5 text-[10px] text-[#8da1bb]">{mealTypeLabel(entry.mealType)} · {entry.amountG} г</p>
+                      <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold">
                         <span className="macro-chip macro-chip-protein">P {formatNumber(nutrients.protein)}г</span>
                         <span className="macro-chip macro-chip-carbs">C {formatNumber(nutrients.carbs)}г</span>
                         <span className="macro-chip macro-chip-fat">F {formatNumber(nutrients.fat)}г</span>
@@ -556,14 +556,14 @@ export default function Home() {
                   </div>
                   <div className="flex items-start gap-1.5">
                     <div className="pt-0.5 text-right">
-                      <p className="text-[1.05rem] font-bold leading-none text-[#f3f8ff]">{formatNumber(nutrients.kcal)}</p>
-                      <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-[#8da1bb]">kcal</p>
+                      <p className="text-[0.98rem] font-bold leading-none text-[#f3f8ff]">{formatNumber(nutrients.kcal)}</p>
+                      <p className="mt-0.5 text-[9px] uppercase tracking-[0.08em] text-[#8da1bb]">kcal</p>
                     </div>
-                    <ChevronRight size={16} className="mt-1 text-[#7f91a8]" />
+                    <ChevronRight size={14} className="mt-1 text-[#7f91a8]" />
                   </div>
                 </div>
 
-                <div className="mt-2.5 flex justify-end gap-1 opacity-70">
+                <div className="mt-1.5 flex justify-end gap-1 opacity-70">
                   <button type="button" onClick={() => startEditingEntry(entry)} className="icon-action-btn secondary-btn" aria-label={`Редактировать ${title}`}>
                     <Pencil size={12} />
                   </button>
@@ -684,8 +684,8 @@ function MicroNormChart({
 }
 
 function HeroCaloriesRing({ consumed, target, ratio }: { consumed: number; target: number; ratio: number }) {
-  const size = 288;
-  const stroke = 22;
+  const size = 224;
+  const stroke = 18;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - Math.max(0, Math.min(1, ratio)));
@@ -724,9 +724,9 @@ function HeroCaloriesRing({ consumed, target, ratio }: { consumed: number; targe
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-[#869ab3]">Calories</p>
-          <p className="mt-1 text-[3.65rem] font-bold leading-none tracking-[-0.038em] text-[#f8fcff]">{formatNumber(consumed)}</p>
-          <p className="mt-1 text-[13px] text-[#8ea3bf]">of {formatNumber(target)} kcal</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#869ab3]">Calories</p>
+          <p className="mt-1 text-[2.55rem] font-bold leading-none tracking-[-0.033em] text-[#f8fcff]">{formatNumber(consumed)}</p>
+          <p className="mt-1 text-[11px] text-[#8ea3bf]">of {formatNumber(target)} kcal</p>
         </div>
       </div>
     </div>
@@ -734,8 +734,8 @@ function HeroCaloriesRing({ consumed, target, ratio }: { consumed: number; targe
 }
 
 function GoalMiniRing({ ratio }: { ratio: number }) {
-  const size = 64;
-  const stroke = 6;
+  const size = 54;
+  const stroke = 5;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const safeRatio = Math.max(0, Math.min(1, ratio));
@@ -758,7 +758,7 @@ function GoalMiniRing({ ratio }: { ratio: number }) {
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-[#e6f3ff]">
+      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#e6f3ff]">
         {Math.round(safeRatio * 100)}%
       </div>
     </div>
@@ -776,15 +776,15 @@ function MacroMiniRing({
   target: number;
   color: string;
 }) {
-  const size = 66;
-  const stroke = 7;
+  const size = 52;
+  const stroke = 6;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const ratio = Math.max(0, Math.min(1, consumed / target));
   const offset = circumference * (1 - ratio);
 
   return (
-    <div className="rounded-[15px] bg-[rgba(15,22,34,0.62)] px-2 py-1.5 text-center ring-1 ring-white/5">
+    <div className="rounded-[14px] bg-[rgba(15,22,34,0.62)] px-1.5 py-1 text-center ring-1 ring-white/5">
       <div className="mx-auto" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1b283b" strokeWidth={stroke} fill="none" />
@@ -802,9 +802,9 @@ function MacroMiniRing({
           />
         </svg>
       </div>
-      <p className="mt-1 text-[10px] uppercase tracking-[0.09em] text-[#8ea3bf]">{label}</p>
-      <p className="mt-0.5 text-[15px] font-semibold leading-none">{formatNumber(consumed)}г</p>
-      <p className="mt-0.5 text-[10px] text-[#8da1bb]">{Math.round(ratio * 100)}%</p>
+      <p className="mt-1 text-[9px] uppercase tracking-[0.08em] text-[#8ea3bf]">{label}</p>
+      <p className="mt-0.5 text-[13px] font-semibold leading-none">{formatNumber(consumed)}г</p>
+      <p className="mt-0.5 text-[9px] text-[#8da1bb]">{Math.round(ratio * 100)}%</p>
     </div>
   );
 }
