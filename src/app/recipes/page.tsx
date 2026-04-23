@@ -1,9 +1,17 @@
 "use client";
 
-import { calculateRecipePer100g, calculateRecipePortionNutrients, foodRepo, recipeIngredientRepo, recipeRepo } from "@/lib/data";
+import {
+  calculateRecipeNutrientDetails,
+  calculateRecipePer100g,
+  calculateRecipePortionNutrients,
+  foodRepo,
+  recipeIngredientRepo,
+  recipeRepo,
+} from "@/lib/data";
 import { isAdminUnlocked } from "@/lib/admin/local-admin";
 import { FoodThumbnail } from "@/components/food-thumbnail";
 import type { Food, Recipe, RecipeIngredient } from "@/lib/data";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type IngredientInput = {
@@ -45,6 +53,14 @@ function toNumber(value: string): number {
 
 function format(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+}
+
+function compactNutrientsLine(map: Record<string, number>, max = 4): string {
+  const entries = Object.entries(map)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max);
+  if (entries.length === 0) return "нет данных";
+  return entries.map(([name, value]) => `${name}: ${format(value)}`).join(" · ");
 }
 
 export default function RecipesPage() {
@@ -120,6 +136,9 @@ export default function RecipesPage() {
   const portionNutrients = useMemo(() => {
     return calculateRecipePortionNutrients(recipePreview, recipePreviewIngredients, foodsById, toNumber(form.portionWeightG));
   }, [recipePreview, recipePreviewIngredients, foodsById, form.portionWeightG]);
+  const detailsPer100 = useMemo(() => {
+    return calculateRecipeNutrientDetails(recipePreview, recipePreviewIngredients, foodsById);
+  }, [recipePreview, recipePreviewIngredients, foodsById]);
 
   const filteredRecipes = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -328,6 +347,8 @@ export default function RecipesPage() {
             Порция {format(toNumber(form.portionWeightG))} г: {format(portionNutrients.kcal)} ккал · Б {format(portionNutrients.protein)} · Ж{" "}
             {format(portionNutrients.fat)} · У {format(portionNutrients.carbs)}
           </p>
+          <p className="mt-2 text-xs text-[#8da1bb]">Микро / 100 г: {compactNutrientsLine(detailsPer100.micronutrientsPer100g)}</p>
+          <p className="mt-1 text-xs text-[#8da1bb]">Витамины / 100 г: {compactNutrientsLine(detailsPer100.vitaminsPer100g)}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -359,6 +380,7 @@ export default function RecipesPage() {
           filteredRecipes.map((recipe) => {
             const recipeIngredients = ingredientsByRecipeId.get(recipe.id) ?? [];
             const stats = calculateRecipePer100g(recipe, recipeIngredients, foodsById);
+            const detailStats = calculateRecipeNutrientDetails(recipe, recipeIngredients, foodsById);
 
             return (
               <article key={recipe.id} className="app-card p-3">
@@ -377,17 +399,19 @@ export default function RecipesPage() {
                       type="button"
                       onClick={() => onEditRecipe(recipe)}
                       disabled={!adminUnlocked}
-                      className="h-8 rounded-lg secondary-btn px-2.5 text-[11px] font-semibold"
+                      className="icon-action-btn secondary-btn"
+                      aria-label={`Редактировать ${recipe.name}`}
                     >
-                      Изм.
+                      <Pencil size={14} />
                     </button>
                     <button
                       type="button"
                       onClick={() => onDeleteRecipe(recipe.id)}
                       disabled={!adminUnlocked}
-                      className="h-8 rounded-lg danger-btn px-2.5 text-[11px] font-semibold"
+                      className="icon-action-btn danger-btn"
+                      aria-label={`Удалить ${recipe.name}`}
                     >
-                      Удал.
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -401,6 +425,8 @@ export default function RecipesPage() {
                   На 100 г: {format(stats.per100g.kcal)} ккал · Б {format(stats.per100g.protein)} · Ж {format(stats.per100g.fat)} · У{" "}
                   {format(stats.per100g.carbs)}
                 </p>
+                <p className="mt-1 text-xs text-[#8da1bb]">Микро: {compactNutrientsLine(detailStats.micronutrientsPer100g, 3)}</p>
+                <p className="mt-1 text-xs text-[#8da1bb]">Витамины: {compactNutrientsLine(detailStats.vitaminsPer100g, 3)}</p>
               </article>
             );
           })

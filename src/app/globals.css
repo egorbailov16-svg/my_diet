@@ -295,3 +295,12 @@ textarea:focus {
   font-weight: 500;
   letter-spacing: 0.02em;
 }
+
+.icon-action-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

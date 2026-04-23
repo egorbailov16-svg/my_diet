@@ -190,20 +190,18 @@ export default function SettingsPage() {
     setAdminMessage("Режим администратора включен.");
   }
 
-  if (isLoading) {
-    return <section className="py-4 text-sm text-neutral-500">Загрузка...</section>;
-  }
+  if (isLoading) return <section className="py-4 text-sm text-[#9db0c8]">Загрузка...</section>;
 
   return (
-    <section className="space-y-4 pb-2">
-      <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Настройки</p>
-        <h1 className="text-xl font-semibold">Настройки</h1>
+    <section className="space-y-4 pb-2 text-neutral-100">
+      <header className="space-y-2">
+        <p className="screen-subtitle">Учет и админка</p>
+        <h1 className="screen-title">Настройки</h1>
       </header>
 
       <form onSubmit={saveSettings} className="space-y-4">
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Профиль</p>
+        <div className="app-card p-4">
+          <p className="mb-3 section-label">Профиль</p>
           <div className="grid grid-cols-1 gap-2">
             <Field
               label="Рост, см"
@@ -226,32 +224,32 @@ export default function SettingsPage() {
         <TargetBlock title="Цели: обычный день" form={normalTargetForm} onChange={setNormalTargetForm} />
         <TargetBlock title="Цели: силовой день" form={strengthTargetForm} onChange={setStrengthTargetForm} />
 
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Администратор</p>
+        <div className="app-card p-4">
+          <p className="mb-3 section-label">Администратор</p>
           {adminUnlocked ? (
             <div className="space-y-2">
-              <p className="text-sm text-neutral-700">Режим администратора активен на этом устройстве.</p>
-              <button type="button" onClick={lockAdminMode} className="h-12 w-full rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
+              <p className="text-sm text-[#b8c7da]">Режим администратора активен на этом устройстве.</p>
+              <button type="button" onClick={lockAdminMode} className="h-12 w-full rounded-2xl danger-btn text-sm font-semibold">
                 Выключить режим администратора
               </button>
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-neutral-600">Введи логин и пароль админа для доступа к редактированию продуктов и рецептов.</p>
+              <p className="text-xs text-[#9db0c8]">Введи логин и пароль админа для доступа к редактированию продуктов и рецептов.</p>
               <Field label="Логин" value={adminLogin} onChange={setAdminLogin} />
-              <Field label="Пароль" value={adminPassword} onChange={setAdminPassword} />
-              <button type="button" onClick={loginAdminMode} className="h-12 w-full rounded-lg bg-neutral-900 text-sm font-semibold text-white">
+              <Field label="Пароль" value={adminPassword} onChange={setAdminPassword} inputType="password" />
+              <button type="button" onClick={loginAdminMode} className="h-12 w-full rounded-2xl accent-btn text-sm font-semibold">
                 Включить режим администратора
               </button>
             </div>
           )}
-          {adminMessage ? <p className="mt-2 text-xs text-neutral-600">{adminMessage}</p> : null}
+          {adminMessage ? <p className="mt-2 text-xs text-[#9db0c8]">{adminMessage}</p> : null}
         </div>
 
         <button
           type="submit"
           disabled={isSaving}
-          className="flex h-12 w-full items-center justify-center rounded-lg bg-neutral-900 text-sm font-semibold text-white disabled:opacity-40"
+          className="flex h-12 w-full items-center justify-center rounded-2xl accent-btn text-sm font-semibold disabled:opacity-40"
         >
           {isSaving ? "Сохранение..." : "Сохранить настройки"}
         </button>
@@ -260,16 +258,26 @@ export default function SettingsPage() {
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function Field({
+  label,
+  value,
+  onChange,
+  inputType = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  inputType?: "text" | "password";
+}) {
   return (
     <label className="space-y-1">
-      <span className="text-xs text-neutral-500">{label}</span>
+      <span className="field-label">{label}</span>
       <input
-        type="text"
+        type={inputType}
         inputMode="decimal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full rounded-lg  px-3 text-base outline-none "
+        className="field-input"
       />
     </label>
   );
@@ -285,8 +293,8 @@ function TargetBlock({
   onChange: React.Dispatch<React.SetStateAction<TargetForm>>;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">{title}</p>
+    <div className="app-card p-4">
+      <p className="mb-3 section-label">{title}</p>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Ккал min" value={form.kcalMin} onChange={(value) => onChange((prev) => ({ ...prev, kcalMin: value }))} />
         <Field label="Ккал max" value={form.kcalMax} onChange={(value) => onChange((prev) => ({ ...prev, kcalMax: value }))} />

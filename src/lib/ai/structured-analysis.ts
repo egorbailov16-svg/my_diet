@@ -9,8 +9,10 @@ export function buildDayAnalysis(input: {
   dayLog: DayLog;
   target: DayTarget | null;
   consumed: NutrientsTotal;
+  netKcal: number;
+  micronutrientCoverage: number;
 }): NonNullable<DayLog["dayAnalysis"]> {
-  const { dayLog, target, consumed } = input;
+  const { dayLog, target, consumed, netKcal, micronutrientCoverage } = input;
   if (!target) {
     return {
       summary: "Цели дня не найдены, анализ ограничен.",
@@ -32,6 +34,7 @@ export function buildDayAnalysis(input: {
   const good: string[] = [];
   const issues: string[] = [];
   const nextDayActions: string[] = [];
+  const estimatedWeeklyWeightDeltaKg = -netKcal * 7 / 7700;
 
   if (consumed.kcal >= target.kcalMin && consumed.kcal <= target.kcalMax) {
     good.push("Калории в целевом диапазоне.");
@@ -68,8 +71,25 @@ export function buildDayAnalysis(input: {
     nextDayActions.push("В конце дня вносить активные ккал вручную.");
   }
 
+  if (micronutrientCoverage >= 70) {
+    good.push(`Микро/витамины учтены для ${toFixed(micronutrientCoverage)}% приемов.`);
+  } else if (micronutrientCoverage > 0) {
+    issues.push(`Неполный учет микронутриентов: ${toFixed(micronutrientCoverage)}% приемов.`);
+    nextDayActions.push("Добавлять микро и витамины в заметки к продуктам.");
+  } else {
+    issues.push("Нет данных о микронутриентах за день.");
+    nextDayActions.push("Заполнять микронутриенты и витамины в карточках продуктов.");
+  }
+
+  const trendText =
+    estimatedWeeklyWeightDeltaKg > 0.05
+      ? `При текущем net-балансе вероятен рост веса около +${toFixed(estimatedWeeklyWeightDeltaKg)} кг/нед.`
+      : estimatedWeeklyWeightDeltaKg < -0.05
+        ? `При текущем net-балансе вероятно снижение веса около ${toFixed(estimatedWeeklyWeightDeltaKg)} кг/нед.`
+        : "По текущему net-балансу вес, вероятно, будет близок к стабильному.";
+
   return {
-    summary: issues.length <= 1 ? "День в целом близок к плану." : "Есть заметные отклонения от плана дня.",
+    summary: `${issues.length <= 1 ? "День в целом близок к плану." : "Есть заметные отклонения от плана дня."} ${trendText}`,
     good,
     issues,
     nextDayActions,

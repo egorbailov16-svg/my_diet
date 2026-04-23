@@ -3,6 +3,7 @@
 import {
   calculateFoodNutrientsForWeight,
   calculateDayTotals,
+  calculateRecipeNutrientDetails,
   calculateRecipePortionNutrients,
   calculateRemainingToDayTarget,
   dayLogRepo,
@@ -10,11 +11,13 @@ import {
   foodRepo,
   mealEntryRepo,
   type DayStatus,
+  resolveFoodNutrientDetails,
   recipeIngredientRepo,
   recipeRepo,
 } from "@/lib/data";
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
 import { buildDayAnalysis } from "@/lib/ai";
+import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -43,6 +46,10 @@ function parseWeight(value: string): number {
   const parsed = Number(value.replace(",", "."));
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return Math.round(parsed * 100) / 100;
+}
+
+function hasAnyNutrients(map?: Record<string, number>): boolean {
+  return !!map && Object.keys(map).length > 0;
 }
 
 type EntryWithNutrients = {
@@ -293,10 +300,27 @@ export default function Home() {
 
   async function finishDay() {
     if (!todayLog || !dayTotals) return;
+    const totalEntries = entries.length;
+    const entriesWithDetails = entries.reduce((acc, entry) => {
+      if (entry.sourceType === "food") {
+        const food = foodsById.get(entry.sourceId);
+        if (!food) return acc;
+        const details = resolveFoodNutrientDetails(food);
+        return hasAnyNutrients(details.micronutrientsPer100g) || hasAnyNutrients(details.vitaminsPer100g) ? acc + 1 : acc;
+      }
+      const recipe = recipesById.get(entry.sourceId);
+      if (!recipe) return acc;
+      const recipeIngredients = ingredientsByRecipeId.get(recipe.id) ?? [];
+      const details = calculateRecipeNutrientDetails(recipe, recipeIngredients, foodsById);
+      return hasAnyNutrients(details.micronutrientsPer100g) || hasAnyNutrients(details.vitaminsPer100g) ? acc + 1 : acc;
+    }, 0);
+    const micronutrientCoverage = totalEntries > 0 ? (entriesWithDetails / totalEntries) * 100 : 0;
     const nextAnalysis = buildDayAnalysis({
       dayLog: todayLog,
       target: currentTarget,
       consumed: dayTotals.consumed,
+      netKcal: dayTotals.netKcal,
+      micronutrientCoverage,
     });
     const updated: DayLog = {
       ...todayLog,
@@ -440,16 +464,18 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => startEditingEntry(entry)}
-                    className="h-10 rounded-lg bg-[#172437] px-3 text-xs font-semibold text-[#d8e4f4]"
+                    className="icon-action-btn secondary-btn"
+                    aria-label={`Редактировать ${title}`}
                   >
-                    Изм.
+                    <Pencil size={14} />
                   </button>
                   <button
                     type="button"
                     onClick={() => deleteEntry(entry)}
-                    className="h-10 rounded-lg bg-[#2f1220] px-3 text-xs font-semibold text-[#ff7ca4]"
+                    className="icon-action-btn danger-btn"
+                    aria-label={`Удалить ${title}`}
                   >
-                    Удал.
+                    <Trash2 size={14} />
                   </button>
                 </div>
 

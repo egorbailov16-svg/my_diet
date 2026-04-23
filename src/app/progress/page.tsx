@@ -17,6 +17,7 @@ import {
 } from "@/lib/data";
 import type { DayLog, Food, MealEntry, Recipe, RecipeIngredient, WeightLog } from "@/lib/data";
 import { buildPeriodAnalysis } from "@/lib/ai";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 function todayISODate(): string {
@@ -420,16 +421,18 @@ export default function ProgressPage() {
                 <button
                   type="button"
                   onClick={() => startEdit(entry)}
-                  className="h-10 rounded-lg bg-[#0d1520] px-3 text-xs font-semibold text-[#c7d4e5]"
+                  className="icon-action-btn secondary-btn"
+                  aria-label={`Редактировать вес ${entry.date}`}
                 >
-                  Изм.
+                  <Pencil size={14} />
                 </button>
                 <button
                   type="button"
                   onClick={() => removeEntry(entry)}
-                  className="h-10 rounded-lg bg-[#2f1220] px-3 text-xs font-semibold text-[#ff7ca4]"
+                  className="icon-action-btn danger-btn"
+                  aria-label={`Удалить вес ${entry.date}`}
                 >
-                  Удал.
+                  <Trash2 size={14} />
                 </button>
               </div>
             </article>

@@ -1,9 +1,10 @@
 "use client";
 
-import { foodRepo, searchExternalFoods } from "@/lib/data";
+import { foodRepo, parseNutrientsFromNote, searchExternalFoods } from "@/lib/data";
 import { isAdminUnlocked } from "@/lib/admin/local-admin";
 import { FoodThumbnail } from "@/components/food-thumbnail";
 import type { ExternalFoodSearchResult, Food, FoodSource } from "@/lib/data";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type FoodFormState = {
@@ -156,6 +157,9 @@ export default function FoodsPage() {
       createdAt: currentEditing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
+    const noteNutrients = parseNutrientsFromNote(nextFood.note);
+    nextFood.micronutrientsPer100g = noteNutrients.micronutrientsPer100g ?? currentEditing?.micronutrientsPer100g;
+    nextFood.vitaminsPer100g = noteNutrients.vitaminsPer100g ?? currentEditing?.vitaminsPer100g;
 
     if (!nextFood.name) return;
 
@@ -428,17 +432,19 @@ export default function FoodsPage() {
                     type="button"
                     onClick={() => startEdit(food)}
                     disabled={food.source === "external" || !adminUnlocked}
-                    className="h-8 rounded-lg secondary-btn px-2.5 text-[11px] font-semibold disabled:opacity-40"
+                    className="icon-action-btn secondary-btn disabled:opacity-40"
+                    aria-label={`Редактировать ${food.name}`}
                   >
-                    Изм.
+                    <Pencil size={14} />
                   </button>
                   <button
                     type="button"
                     onClick={() => onDelete(food)}
                     disabled={food.source === "external" || !adminUnlocked}
-                    className="h-8 rounded-lg danger-btn px-2.5 text-[11px] font-semibold disabled:opacity-40"
+                    className="icon-action-btn danger-btn disabled:opacity-40"
+                    aria-label={`Удалить ${food.name}`}
                   >
-                    Удал.
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
