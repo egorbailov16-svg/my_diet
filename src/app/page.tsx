@@ -20,7 +20,7 @@ import {
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
 import { buildDayAnalysis } from "@/lib/ai";
 import { FoodThumbnail } from "@/components/food-thumbnail";
-import { Pencil, Trash2 } from "lucide-react";
+import { Flame, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -85,6 +85,13 @@ function addMaps(a: Record<string, number>, b: Record<string, number>): Record<s
     out[key] = Math.round(((out[key] ?? 0) + value) * 100) / 100;
   }
   return out;
+}
+
+function mealTypeLabel(type: MealEntry["mealType"]): string {
+  if (type === "breakfast") return "Завтрак";
+  if (type === "lunch") return "Обед";
+  if (type === "dinner") return "Ужин";
+  return "Перекус";
 }
 
 type EntryWithNutrients = {
@@ -284,6 +291,31 @@ export default function Home() {
     });
   }, [entries, foodsById, recipesById, ingredientsByRecipeId]);
 
+  const calorieTarget = useMemo(() => {
+    if (!currentTarget) return 2200;
+    return Math.max(1, currentTarget.kcalMax);
+  }, [currentTarget]);
+
+  const calorieProgressRatio = useMemo(() => {
+    if (!dayTotals) return 0;
+    return Math.max(0, Math.min(1, dayTotals.consumed.kcal / calorieTarget));
+  }, [dayTotals, calorieTarget]);
+
+  const macroStats = useMemo(() => {
+    if (!dayTotals || !currentTarget) {
+      return [
+        { key: "protein", label: "Белки", consumed: 0, target: 1, color: "#84e14b" },
+        { key: "carbs", label: "Углеводы", consumed: 0, target: 1, color: "#4d8dff" },
+        { key: "fat", label: "Жиры", consumed: 0, target: 1, color: "#ff5a6b" },
+      ];
+    }
+    return [
+      { key: "protein", label: "Белки", consumed: dayTotals.consumed.protein, target: Math.max(1, currentTarget.proteinTarget), color: "#84e14b" },
+      { key: "carbs", label: "Углеводы", consumed: dayTotals.consumed.carbs, target: Math.max(1, (currentTarget.carbsMin + currentTarget.carbsMax) / 2), color: "#4d8dff" },
+      { key: "fat", label: "Жиры", consumed: dayTotals.consumed.fat, target: Math.max(1, (currentTarget.fatMin + currentTarget.fatMax) / 2), color: "#ff5a6b" },
+    ];
+  }, [dayTotals, currentTarget]);
+
   async function updateDayType(dayType: DayLog["dayType"]) {
     if (!todayLog) return;
     const updated: DayLog = { ...todayLog, dayType, updatedAt: nowISO() };
@@ -459,13 +491,18 @@ export default function Home() {
       </div>
 
       <div className="app-card p-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Итоги за день</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Stat label="Калории" value={dayTotals?.consumed.kcal ?? 0} unit="ккал" />
-          <Stat label="Белки" value={dayTotals?.consumed.protein ?? 0} unit="г" />
-          <Stat label="Жиры" value={dayTotals?.consumed.fat ?? 0} unit="г" />
-          <Stat label="Углеводы" value={dayTotals?.consumed.carbs ?? 0} unit="г" />
-          <Stat label="Активные ккал" value={todayLog.activeKcal} unit="ккал" />
+        <div className="mb-2 flex items-center justify-between">
+          <span className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,90,107,0.2)] bg-[rgba(255,90,107,0.08)] px-3 py-1.5 text-xs text-[#ff9cad]">
+            <Flame size={14} />
+            Активные ккал: {formatNumber(todayLog.activeKcal)}
+          </span>
+          <span className="text-xs text-[#8ea3bf]">Прогресс: {Math.round(calorieProgressRatio * 100)}%</span>
+        </div>
+        <HeroCaloriesRing consumed={dayTotals?.consumed.kcal ?? 0} target={calorieTarget} ratio={calorieProgressRatio} />
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {macroStats.map((item) => (
+            <MacroMiniRing key={item.key} label={item.label} consumed={item.consumed} target={item.target} color={item.color} />
+          ))}
         </div>
       </div>
 
@@ -517,13 +554,16 @@ export default function Home() {
       </div>
 
       <div className="app-card p-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Записи за день</p>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Сегодняшняя еда</p>
+          <Link href="/add-entry" className="text-xs font-semibold text-[#8fff70]">Изменить</Link>
+        </div>
         {entriesWithNutrients.length === 0 ? (
           <p className="text-sm text-[#9db0c8]">Пока нет записей. Добавь первый прием пищи.</p>
         ) : (
           <ul className="space-y-2">
             {entriesWithNutrients.map(({ entry, title, nutrients }) => (
-              <li key={entry.id} className="app-subcard p-3">
+              <li key={entry.id} className="rounded-2xl bg-[rgba(8,14,22,0.85)] px-3 py-2.5">
                 <div className="mb-1 flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <FoodThumbnail
@@ -537,18 +577,26 @@ export default function Home() {
                       size={44}
                     />
                     <div>
-                      <p className="text-sm font-medium">{title}</p>
-                      <p className="mt-1 text-xs text-[#8da1bb]">{entry.amountG} г</p>
+                      <p className="text-sm font-semibold leading-tight">{title}</p>
+                      <p className="mt-1 text-xs text-[#8da1bb]">{mealTypeLabel(entry.mealType)} · {entry.amountG} г</p>
+                      <p className="mt-1 text-xs text-[#b8c7da]">
+                        <span className="macro-protein">P {formatNumber(nutrients.protein)}г</span>{" "}
+                        <span className="macro-carbs">C {formatNumber(nutrients.carbs)}г</span>{" "}
+                        <span className="macro-fat">F {formatNumber(nutrients.fat)}г</span>
+                      </p>
                     </div>
                   </div>
-                  <div className="flex gap-1.5 opacity-75">
+                  <div className="text-right">
+                    <p className="text-base font-bold text-[#f3f8ff]">{formatNumber(nutrients.kcal)}</p>
+                    <p className="text-[11px] uppercase text-[#8da1bb]">ккал</p>
+                    <div className="mt-1.5 flex justify-end gap-1 opacity-70">
                     <button
                       type="button"
                       onClick={() => startEditingEntry(entry)}
                       className="icon-action-btn secondary-btn"
                       aria-label={`Редактировать ${title}`}
                     >
-                      <Pencil size={13} />
+                      <Pencil size={12} />
                     </button>
                     <button
                       type="button"
@@ -556,14 +604,11 @@ export default function Home() {
                       className="icon-action-btn danger-btn"
                       aria-label={`Удалить ${title}`}
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={12} />
                     </button>
                   </div>
+                  </div>
                 </div>
-                <p className="text-xs text-[#b8c7da]">
-                  {formatNumber(nutrients.kcal)} ккал · Б {formatNumber(nutrients.protein)} · Ж {formatNumber(nutrients.fat)} · У{" "}
-                  {formatNumber(nutrients.carbs)}
-                </p>
 
                 {editingEntryId === entry.id ? (
                   <div className="mt-3 space-y-2 rounded-lg border border-[#233247] bg-[#0a111b] p-3">
@@ -643,7 +688,7 @@ export default function Home() {
 
       <div className="app-card p-4">
         <label htmlFor="active-kcal" className="mb-2 block text-xs font-medium uppercase tracking-wide text-[#9db0c8]">
-          Активные ккал (ручной ввод)
+          Active calories
         </label>
         <input
           id="active-kcal"
@@ -738,6 +783,100 @@ function MicroNormChart({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function HeroCaloriesRing({ consumed, target, ratio }: { consumed: number; target: number; ratio: number }) {
+  const size = 252;
+  const stroke = 18;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - Math.max(0, Math.min(1, ratio)));
+
+  return (
+    <div className="mt-1 flex justify-center">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <defs>
+            <linearGradient id="heroCaloriesGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#84e14b" />
+              <stop offset="55%" stopColor="#4d8dff" />
+              <stop offset="100%" stopColor="#ffe066" />
+            </linearGradient>
+            <filter id="heroGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#172437" strokeWidth={stroke} fill="none" />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="url(#heroCaloriesGradient)"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            filter="url(#heroGlow)"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <p className="text-xs uppercase tracking-[0.16em] text-[#8ea3bf]">Calories</p>
+          <p className="mt-1 text-[3rem] font-bold leading-none tracking-[-0.03em] text-[#f8fcff]">{formatNumber(consumed)}</p>
+          <p className="mt-1 text-sm text-[#8ea3bf]">of {formatNumber(target)} kcal</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MacroMiniRing({
+  label,
+  consumed,
+  target,
+  color,
+}: {
+  label: string;
+  consumed: number;
+  target: number;
+  color: string;
+}) {
+  const size = 66;
+  const stroke = 7;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const ratio = Math.max(0, Math.min(1, consumed / target));
+  const offset = circumference * (1 - ratio);
+
+  return (
+    <div className="app-subcard p-2 text-center">
+      <div className="mx-auto" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1a2638" strokeWidth={stroke} fill="none" />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={color}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </svg>
+      </div>
+      <p className="mt-1 text-[11px] uppercase tracking-wide text-[#8ea3bf]">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold">{formatNumber(consumed)}г</p>
+      <p className="text-[11px] text-[#8da1bb]">{Math.round(ratio * 100)}%</p>
     </div>
   );
 }
