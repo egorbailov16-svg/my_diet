@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #05070b;
+  --background: #040608;
   --surface: #0d1117;
   --surface-2: #10141b;
   --foreground: #f5f7fa;
@@ -9,10 +9,10 @@
   --muted-2: #727b8a;
   --border: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.12);
-  --accent: #84e14b;
-  --accent-strong: #7cff4f;
-  --accent-2: #4d8dff;
-  --danger: #ff5a6b;
+  --accent: #8ee95b;
+  --accent-strong: #9af86a;
+  --accent-2: #49a4ff;
+  --danger: #ff617a;
   --shadow-soft: 0 16px 36px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 10px 24px rgba(0, 0, 0, 0.42);
   --glow-accent: 0 0 0 1px rgba(132, 225, 75, 0.22), 0 12px 28px rgba(132, 225, 75, 0.24);
@@ -34,10 +34,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  letter-spacing: 0.005em;
-  background-image: radial-gradient(circle at 8% -12%, rgba(77, 141, 255, 0.1), transparent 42%),
-    radial-gradient(circle at 92% -8%, rgba(132, 225, 75, 0.09), transparent 36%),
-    radial-gradient(circle at 50% 110%, rgba(77, 141, 255, 0.06), transparent 45%);
+  letter-spacing: 0.003em;
+  background-image: radial-gradient(circle at 8% -12%, rgba(77, 141, 255, 0.08), transparent 42%),
+    radial-gradient(circle at 92% -8%, rgba(132, 225, 75, 0.07), transparent 36%),
+    radial-gradient(circle at 50% 110%, rgba(77, 141, 255, 0.04), transparent 45%);
   background-attachment: fixed;
 }
 
@@ -81,7 +81,7 @@ textarea:focus {
 .app-card {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(18, 24, 36, 0.98), rgba(10, 15, 24, 0.98));
-  border-radius: 22px;
+  border-radius: 24px;
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42), 0 2px 0 rgba(255, 255, 255, 0.03) inset;
   position: relative;
   overflow: hidden;
@@ -119,18 +119,18 @@ textarea:focus {
 }
 
 .screen-title {
-  font-size: 1.95rem;
-  line-height: 1.1;
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  font-size: 2.05rem;
+  line-height: 1.03;
+  font-weight: 760;
+  letter-spacing: -0.028em;
 }
 
 .screen-subtitle {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 500;
+  letter-spacing: 0.12em;
+  font-weight: 560;
 }
 
 .section-label {
@@ -142,9 +142,9 @@ textarea:focus {
 }
 
 .accent-btn {
-  background: linear-gradient(180deg, #9cf067, #77d23e);
+  background: linear-gradient(180deg, #a5f86d, #84db4e);
   color: #06120a;
-  box-shadow: var(--glow-accent);
+  box-shadow: 0 0 0 1px rgba(132, 225, 75, 0.22), 0 10px 24px rgba(132, 225, 75, 0.22);
   transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
   font-weight: 700;
 }
@@ -184,25 +184,25 @@ textarea:focus {
 }
 
 .pill-segment {
-  background: linear-gradient(180deg, #0d1522, #0a111b);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, #0f1724, #0b121d);
+  border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 999px;
   font-weight: 600;
 }
 
 .glass-icon-btn {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(14, 20, 31, 0.78);
+  background: rgba(12, 18, 27, 0.84);
   color: #d4dfef;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(12px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-  font-size: 18px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.34);
+  font-size: 14px;
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
@@ -307,9 +307,9 @@ textarea:focus {
 }
 
 .icon-action-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -328,4 +328,54 @@ textarea:focus {
   color: #8ea3bf;
   text-transform: uppercase;
   letter-spacing: 0.09em;
+}
+
+.hero-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: radial-gradient(120% 90% at 50% 58%, rgba(29, 60, 104, 0.2), rgba(7, 10, 16, 0) 62%),
+    radial-gradient(70% 58% at 52% 42%, rgba(132, 225, 75, 0.08), rgba(0, 0, 0, 0)),
+    linear-gradient(180deg, rgba(17, 22, 32, 0.99), rgba(8, 12, 18, 0.98));
+  border-radius: 30px;
+  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.food-row-card {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: linear-gradient(180deg, rgba(12, 18, 28, 0.95), rgba(8, 13, 22, 0.96));
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.3);
+}
+
+.macro-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  line-height: 1.45;
+}
+
+.macro-chip-protein {
+  color: #93ea5f;
+  background: rgba(132, 225, 75, 0.12);
+  border-color: rgba(132, 225, 75, 0.2);
+}
+
+.macro-chip-carbs {
+  color: #74bbff;
+  background: rgba(77, 141, 255, 0.13);
+  border-color: rgba(77, 141, 255, 0.24);
+}
+
+.macro-chip-fat {
+  color: #ff8c9d;
+  background: rgba(255, 90, 107, 0.12);
+  border-color: rgba(255, 90, 107, 0.24);
+}
+
+.summary-track-card {
+  border: 1px solid rgba(132, 225, 75, 0.13);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(10, 17, 26, 0.98), rgba(9, 14, 22, 0.98));
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }

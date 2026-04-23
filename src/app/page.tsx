@@ -20,7 +20,7 @@ import {
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
 import { buildDayAnalysis } from "@/lib/ai";
 import { FoodThumbnail } from "@/components/food-thumbnail";
-import { Flame, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -316,6 +316,11 @@ export default function Home() {
     ];
   }, [dayTotals, currentTarget]);
 
+  const remainingKcal = useMemo(() => {
+    if (!remaining) return 0;
+    return Math.max(0, remaining.kcalMax);
+  }, [remaining]);
+
   async function updateDayType(dayType: DayLog["dayType"]) {
     if (!todayLog) return;
     const updated: DayLog = { ...todayLog, dayType, updatedAt: nowISO() };
@@ -448,31 +453,30 @@ export default function Home() {
   }
 
   return (
-    <section className="space-y-4 pb-2 text-neutral-100">
-      <header className="space-y-2">
-        <div className="flex items-center justify-between gap-3">
+    <section className="space-y-3.5 pb-2 text-neutral-100">
+      <header className="px-0.5 pt-1">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="screen-subtitle capitalize">{todayLabel}</p>
-            <h1 className="screen-title">Сегодня</h1>
+            <h1 className="screen-title mt-1">Сегодня</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="mt-0.5 flex items-center gap-1.5">
             <Link href="/settings" className="glass-icon-btn" aria-label="Настройки">
-              ⚙
+              <CalendarDays size={16} />
             </Link>
             <button type="button" className="glass-icon-btn" aria-label="Дополнительно">
-              ⋯
+              <MoreHorizontal size={16} />
             </button>
           </div>
         </div>
       </header>
 
-      <div className="app-card p-3">
-        <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Тип дня</p>
-        <div className="grid grid-cols-2 gap-2 rounded-full bg-[#0b1320] p-1">
+      <div className="rounded-[28px] border border-[rgba(255,255,255,0.06)] bg-[rgba(8,13,20,0.88)] p-1">
+        <div className="grid grid-cols-2 gap-1">
           <button
             type="button"
             onClick={() => updateDayType("normal")}
-            className={`h-12 rounded-lg text-sm font-semibold ${
+            className={`h-11 rounded-full text-sm font-semibold tracking-[0.01em] ${
               todayLog.dayType === "normal" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
             }`}
           >
@@ -481,7 +485,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => updateDayType("strength")}
-            className={`h-12 rounded-lg text-sm font-semibold ${
+            className={`h-11 rounded-full text-sm font-semibold tracking-[0.01em] ${
               todayLog.dayType === "strength" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
             }`}
           >
@@ -490,72 +494,37 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="app-card p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,90,107,0.2)] bg-[rgba(255,90,107,0.08)] px-3 py-1.5 text-xs text-[#ff9cad]">
-            <Flame size={14} />
-            Активные ккал: {formatNumber(todayLog.activeKcal)}
-          </span>
-          <span className="text-xs text-[#8ea3bf]">Прогресс: {Math.round(calorieProgressRatio * 100)}%</span>
+      <div className="hero-card px-4 pb-4 pt-5">
+        <div className="relative min-h-[350px]">
+          <div className="absolute left-0 top-[112px] w-[82px]">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(255,95,117,0.45)] bg-[rgba(255,62,87,0.12)] text-[#ff6a7c] shadow-[0_0_22px_rgba(255,68,96,0.25)]">
+              <Flame size={16} />
+            </div>
+            <p className="mt-2 text-[10px] uppercase tracking-[0.08em] text-[#95a8bf]">Activity calories</p>
+            <p className="mt-1 text-[2rem] font-bold leading-none text-[#ff5e74]">{formatNumber(todayLog.activeKcal)}</p>
+            <p className="text-xs text-[#8c9eb5]">kcal</p>
+          </div>
+
+          <div className="mx-auto w-fit">
+            <HeroCaloriesRing consumed={dayTotals?.consumed.kcal ?? 0} target={calorieTarget} ratio={calorieProgressRatio} />
+          </div>
+
+          <div className="absolute right-1 top-[138px] flex w-[74px] flex-col items-center text-center">
+            <GoalMiniRing ratio={calorieProgressRatio} />
+            <p className="mt-2 text-[10px] uppercase leading-tight tracking-[0.08em] text-[#8da1bb]">Goal Progress</p>
+          </div>
         </div>
-        <HeroCaloriesRing consumed={dayTotals?.consumed.kcal ?? 0} target={calorieTarget} ratio={calorieProgressRatio} />
-        <div className="mt-4 grid grid-cols-3 gap-2">
+
+        <div className="mt-[-10px] grid grid-cols-3 gap-1.5">
           {macroStats.map((item) => (
             <MacroMiniRing key={item.key} label={item.label} consumed={item.consumed} target={item.target} color={item.color} />
           ))}
         </div>
       </div>
 
-      <div className="app-card p-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Микро и витамины за день</p>
-        <MicroNormChart items={dayMicronutrients} />
-      </div>
-
-      <div className="app-card p-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Прогресс по цели</p>
-        {currentTarget && dayTotals ? (
-          <div className="mt-3 space-y-2">
-            <ProgressRow
-              label="Калории"
-              value={dayTotals.consumed.kcal}
-              target={(currentTarget.kcalMin + currentTarget.kcalMax) / 2}
-              unit="ккал"
-            />
-            <ProgressRow label="Белки" value={dayTotals.consumed.protein} target={currentTarget.proteinTarget} unit="г" />
-            <ProgressRow
-              label="Жиры"
-              value={dayTotals.consumed.fat}
-              target={(currentTarget.fatMin + currentTarget.fatMax) / 2}
-              unit="г"
-            />
-            <ProgressRow
-              label="Углеводы"
-              value={dayTotals.consumed.carbs}
-              target={(currentTarget.carbsMin + currentTarget.carbsMax) / 2}
-              unit="г"
-            />
-          </div>
-        ) : null}
-        {!currentTarget ? <p className="text-sm text-[#9db0c8]">Цели дня не найдены.</p> : null}
-      </div>
-
-      <div className="app-card p-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Осталось до цели</p>
-        {remaining ? (
-          <div className="space-y-2 text-sm">
-            <Row label="Калории" value={`${formatNumber(remaining.kcalMin)}..${formatNumber(remaining.kcalMax)} ккал`} />
-            <Row label="Белки" value={`${formatNumber(remaining.protein)} г`} />
-            <Row label="Жиры" value={`${formatNumber(remaining.fatMin)}..${formatNumber(remaining.fatMax)} г`} />
-            <Row label="Углеводы" value={`${formatNumber(remaining.carbsMin)}..${formatNumber(remaining.carbsMax)} г`} />
-          </div>
-        ) : (
-          <p className="text-sm text-[#9db0c8]">Цели дня не найдены.</p>
-        )}
-      </div>
-
-      <div className="app-card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Сегодняшняя еда</p>
+      <div className="app-card p-3.5">
+        <div className="mb-2.5 flex items-center justify-between">
+          <p className="text-[15px] font-semibold tracking-[-0.01em] text-[#f6fbff]">Сегодняшняя еда</p>
           <Link href="/add-entry" className="text-xs font-semibold text-[#8fff70]">Изменить</Link>
         </div>
         {entriesWithNutrients.length === 0 ? (
@@ -563,120 +532,62 @@ export default function Home() {
         ) : (
           <ul className="space-y-2">
             {entriesWithNutrients.map(({ entry, title, nutrients }) => (
-              <li key={entry.id} className="rounded-2xl bg-[rgba(8,14,22,0.85)] px-3 py-2.5">
-                <div className="mb-1 flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
+              <li key={entry.id} className="food-row-card px-2.5 py-2.5">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex min-w-0 items-start gap-2.5">
                     <FoodThumbnail
                       name={title}
                       preferredUrl={
                         entry.sourceType === "food"
-                          ? getExternalImageUrl(foodsById.get(entry.sourceId)) ??
-                            `https://source.unsplash.com/featured/?food,${encodeURIComponent(title)}`
+                          ? getExternalImageUrl(foodsById.get(entry.sourceId)) ?? `https://source.unsplash.com/featured/?food,${encodeURIComponent(title)}`
                           : `https://source.unsplash.com/featured/?food,${encodeURIComponent(title)}`
                       }
-                      size={44}
+                      size={48}
                     />
-                    <div>
-                      <p className="text-sm font-semibold leading-tight">{title}</p>
-                      <p className="mt-1 text-xs text-[#8da1bb]">{mealTypeLabel(entry.mealType)} · {entry.amountG} г</p>
-                      <p className="mt-1 text-xs text-[#b8c7da]">
-                        <span className="macro-protein">P {formatNumber(nutrients.protein)}г</span>{" "}
-                        <span className="macro-carbs">C {formatNumber(nutrients.carbs)}г</span>{" "}
-                        <span className="macro-fat">F {formatNumber(nutrients.fat)}г</span>
-                      </p>
+                    <div className="min-w-0">
+                      <p className="truncate text-[15px] font-semibold leading-tight">{title}</p>
+                      <p className="mt-0.5 text-[11px] text-[#8da1bb]">{mealTypeLabel(entry.mealType)} · {entry.amountG} г</p>
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold">
+                        <span className="macro-chip macro-chip-protein">P {formatNumber(nutrients.protein)}г</span>
+                        <span className="macro-chip macro-chip-carbs">C {formatNumber(nutrients.carbs)}г</span>
+                        <span className="macro-chip macro-chip-fat">F {formatNumber(nutrients.fat)}г</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-base font-bold text-[#f3f8ff]">{formatNumber(nutrients.kcal)}</p>
-                    <p className="text-[11px] uppercase text-[#8da1bb]">ккал</p>
-                    <div className="mt-1.5 flex justify-end gap-1 opacity-70">
-                    <button
-                      type="button"
-                      onClick={() => startEditingEntry(entry)}
-                      className="icon-action-btn secondary-btn"
-                      aria-label={`Редактировать ${title}`}
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteEntry(entry)}
-                      className="icon-action-btn danger-btn"
-                      aria-label={`Удалить ${title}`}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                  <div className="flex items-start gap-1.5">
+                    <div className="pt-0.5 text-right">
+                      <p className="text-[1.05rem] font-bold leading-none text-[#f3f8ff]">{formatNumber(nutrients.kcal)}</p>
+                      <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-[#8da1bb]">kcal</p>
+                    </div>
+                    <ChevronRight size={16} className="mt-1 text-[#7f91a8]" />
                   </div>
-                  </div>
+                </div>
+
+                <div className="mt-2.5 flex justify-end gap-1 opacity-70">
+                  <button type="button" onClick={() => startEditingEntry(entry)} className="icon-action-btn secondary-btn" aria-label={`Редактировать ${title}`}>
+                    <Pencil size={12} />
+                  </button>
+                  <button type="button" onClick={() => deleteEntry(entry)} className="icon-action-btn danger-btn" aria-label={`Удалить ${title}`}>
+                    <Trash2 size={12} />
+                  </button>
                 </div>
 
                 {editingEntryId === entry.id ? (
                   <div className="mt-3 space-y-2 rounded-lg border border-[#233247] bg-[#0a111b] p-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingSourceType("food");
-                          setEditingSourceId("");
-                        }}
-                        className={`h-10 rounded-lg text-xs font-semibold ${
-                          editingSourceType === "food" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
-                        }`}
-                      >
-                        Продукт
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingSourceType("recipe");
-                          setEditingSourceId("");
-                        }}
-                        className={`h-10 rounded-lg text-xs font-semibold ${
-                          editingSourceType === "recipe" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
-                        }`}
-                      >
-                        Блюдо
-                      </button>
+                      <button type="button" onClick={() => { setEditingSourceType("food"); setEditingSourceId(""); }} className={`h-10 rounded-lg text-xs font-semibold ${editingSourceType === "food" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"}`}>Продукт</button>
+                      <button type="button" onClick={() => { setEditingSourceType("recipe"); setEditingSourceId(""); }} className={`h-10 rounded-lg text-xs font-semibold ${editingSourceType === "recipe" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"}`}>Блюдо</button>
                     </div>
-
-                    <select
-                      value={editingSourceId}
-                      onChange={(event) => setEditingSourceId(event.target.value)}
-                      className="h-10 w-full rounded-lg  px-2 text-sm outline-none "
-                    >
+                    <select value={editingSourceId} onChange={(event) => setEditingSourceId(event.target.value)} className="h-10 w-full rounded-lg px-2 text-sm outline-none">
                       <option value="">Выбери {editingSourceType === "food" ? "продукт" : "блюдо"}</option>
                       {(editingSourceType === "food" ? foods : recipes).map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
+                        <option key={item.id} value={item.id}>{item.name}</option>
                       ))}
                     </select>
-
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={editingWeightInput}
-                      onChange={(event) => setEditingWeightInput(event.target.value)}
-                      placeholder="Вес, г"
-                      className="h-10 w-full rounded-lg  px-3 text-sm outline-none "
-                    />
-
+                    <input type="text" inputMode="decimal" value={editingWeightInput} onChange={(event) => setEditingWeightInput(event.target.value)} placeholder="Вес, г" className="h-10 w-full rounded-lg px-3 text-sm outline-none" />
                     <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => saveEntryEdit(entry)}
-                        disabled={!editingSourceId || parseWeight(editingWeightInput) <= 0}
-                        className="h-10 rounded-lg accent-btn text-xs font-semibold disabled:opacity-40"
-                      >
-                        Сохранить
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEditingEntry}
-                        className="h-10 rounded-lg bg-[#0d1520] text-xs font-semibold text-[#c7d4e5]"
-                      >
-                        Отмена
-                      </button>
+                      <button type="button" onClick={() => saveEntryEdit(entry)} disabled={!editingSourceId || parseWeight(editingWeightInput) <= 0} className="h-10 rounded-lg accent-btn text-xs font-semibold disabled:opacity-40">Сохранить</button>
+                      <button type="button" onClick={cancelEditingEntry} className="h-10 rounded-lg bg-[#0d1520] text-xs font-semibold text-[#c7d4e5]">Отмена</button>
                     </div>
                   </div>
                 ) : null}
@@ -686,64 +597,49 @@ export default function Home() {
         )}
       </div>
 
-      <div className="app-card p-4">
-        <label htmlFor="active-kcal" className="mb-2 block text-xs font-medium uppercase tracking-wide text-[#9db0c8]">
-          Active calories
-        </label>
-        <input
-          id="active-kcal"
-          type="number"
-          min={0}
-          value={todayLog.activeKcal}
-          onChange={(event) => updateActiveKcal(Number(event.target.value))}
-          className="h-12 w-full rounded-lg  px-3 text-base outline-none "
-        />
-      </div>
-
-      <div className="app-card p-4">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Завершение дня</p>
-        <p className="mb-3 text-sm text-[#b8c7da]">Статус: {todayLog.status === "completed" ? "завершен" : "активный"}</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={finishDay} className="h-11 rounded-lg accent-btn text-sm font-semibold">
-            Закончить день
-          </button>
-          <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-[#0d1520] text-sm font-semibold text-[#c7d4e5]">
-            Открыть снова
-          </button>
+      <div className="summary-track-card px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[rgba(132,225,75,0.28)] bg-[rgba(132,225,75,0.08)] text-[#8fff70]">
+              <Target size={16} />
+            </span>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.1em] text-[#8da1bb]">Осталось калорий</p>
+              <p className="text-[1.65rem] font-bold leading-none tracking-[-0.02em] text-[#f7fcff]">{formatNumber(remainingKcal)} kcal</p>
+            </div>
+          </div>
+          <p className="max-w-[128px] text-right text-xs leading-tight text-[#97ed7e]">Отлично! Ты на правильном пути.</p>
         </div>
       </div>
 
-      {todayLog.dayAnalysis ? (
-      <div className="app-card p-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Итог дня</p>
-          <p className="text-sm text-[#e8f0fc]">{todayLog.dayAnalysis.summary}</p>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Что хорошо</p>
-          <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
-            {todayLog.dayAnalysis.good.map((item) => (
-              <li key={item}>- {item}</li>
-            ))}
-          </ul>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Что плохо</p>
-          <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
-            {todayLog.dayAnalysis.issues.map((item) => (
-              <li key={item}>- {item}</li>
-            ))}
-          </ul>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Что исправить завтра</p>
-          <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
-            {todayLog.dayAnalysis.nextDayActions.map((item) => (
-              <li key={item}>- {item}</li>
-            ))}
-          </ul>
+      <details className="app-card px-4 py-3">
+        <summary className="cursor-pointer text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Подробная статистика дня</summary>
+        <div className="mt-3 space-y-3">
+          <div>
+            <label htmlFor="active-kcal" className="mb-1.5 block text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Active calories</label>
+            <input id="active-kcal" type="number" min={0} value={todayLog.activeKcal} onChange={(event) => updateActiveKcal(Number(event.target.value))} className="h-12 w-full rounded-lg px-3 text-base outline-none" />
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Микро и витамины</p>
+            <MicroNormChart items={dayMicronutrients} />
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Прогресс по цели</p>
+            {currentTarget && dayTotals ? (
+              <div className="space-y-2">
+                <ProgressRow label="Калории" value={dayTotals.consumed.kcal} target={(currentTarget.kcalMin + currentTarget.kcalMax) / 2} unit="ккал" />
+                <ProgressRow label="Белки" value={dayTotals.consumed.protein} target={currentTarget.proteinTarget} unit="г" />
+                <ProgressRow label="Жиры" value={dayTotals.consumed.fat} target={(currentTarget.fatMin + currentTarget.fatMax) / 2} unit="г" />
+                <ProgressRow label="Углеводы" value={dayTotals.consumed.carbs} target={(currentTarget.carbsMin + currentTarget.carbsMax) / 2} unit="г" />
+              </div>
+            ) : <p className="text-sm text-[#9db0c8]">Цели дня не найдены.</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={finishDay} className="h-11 rounded-lg accent-btn text-sm font-semibold">Закончить день</button>
+            <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-[#0d1520] text-sm font-semibold text-[#c7d4e5]">Открыть снова</button>
+          </div>
         </div>
-      ) : null}
-
-      <Link
-        href="/add-entry"
-        className="flex h-12 w-full items-center justify-center rounded-2xl accent-btn text-sm font-semibold"
-      >
-        Быстро добавить еду
-      </Link>
+      </details>
     </section>
   );
 }
@@ -788,8 +684,8 @@ function MicroNormChart({
 }
 
 function HeroCaloriesRing({ consumed, target, ratio }: { consumed: number; target: number; ratio: number }) {
-  const size = 252;
-  const stroke = 18;
+  const size = 288;
+  const stroke = 22;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - Math.max(0, Math.min(1, ratio)));
@@ -800,19 +696,19 @@ function HeroCaloriesRing({ consumed, target, ratio }: { consumed: number; targe
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <defs>
             <linearGradient id="heroCaloriesGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#84e14b" />
-              <stop offset="55%" stopColor="#4d8dff" />
-              <stop offset="100%" stopColor="#ffe066" />
+              <stop offset="12%" stopColor="#98ee57" />
+              <stop offset="56%" stopColor="#46a6ff" />
+              <stop offset="96%" stopColor="#ff5572" />
             </linearGradient>
             <filter id="heroGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feGaussianBlur stdDeviation="3.4" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
           </defs>
-          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#172437" strokeWidth={stroke} fill="none" />
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#101b2a" strokeWidth={stroke} fill="none" />
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -828,10 +724,42 @@ function HeroCaloriesRing({ consumed, target, ratio }: { consumed: number; targe
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p className="text-xs uppercase tracking-[0.16em] text-[#8ea3bf]">Calories</p>
-          <p className="mt-1 text-[3rem] font-bold leading-none tracking-[-0.03em] text-[#f8fcff]">{formatNumber(consumed)}</p>
-          <p className="mt-1 text-sm text-[#8ea3bf]">of {formatNumber(target)} kcal</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#869ab3]">Calories</p>
+          <p className="mt-1 text-[3.65rem] font-bold leading-none tracking-[-0.038em] text-[#f8fcff]">{formatNumber(consumed)}</p>
+          <p className="mt-1 text-[13px] text-[#8ea3bf]">of {formatNumber(target)} kcal</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function GoalMiniRing({ ratio }: { ratio: number }) {
+  const size = 64;
+  const stroke = 6;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const safeRatio = Math.max(0, Math.min(1, ratio));
+  const offset = circumference * (1 - safeRatio);
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1d2b3e" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#8cf55e"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-[#e6f3ff]">
+        {Math.round(safeRatio * 100)}%
       </div>
     </div>
   );
@@ -856,10 +784,10 @@ function MacroMiniRing({
   const offset = circumference * (1 - ratio);
 
   return (
-    <div className="app-subcard p-2 text-center">
+    <div className="rounded-[15px] bg-[rgba(15,22,34,0.62)] px-2 py-1.5 text-center ring-1 ring-white/5">
       <div className="mx-auto" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1a2638" strokeWidth={stroke} fill="none" />
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#1b283b" strokeWidth={stroke} fill="none" />
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -874,29 +802,9 @@ function MacroMiniRing({
           />
         </svg>
       </div>
-      <p className="mt-1 text-[11px] uppercase tracking-wide text-[#8ea3bf]">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold">{formatNumber(consumed)}г</p>
-      <p className="text-[11px] text-[#8da1bb]">{Math.round(ratio * 100)}%</p>
-    </div>
-  );
-}
-
-function Stat({ label, value, unit }: { label: string; value: number; unit: string }) {
-  return (
-    <div className="app-subcard p-3">
-      <p className="kpi-label">{label}</p>
-      <p className="kpi-value mt-1">
-        {formatNumber(value)} {unit}
-      </p>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <p className="text-[#b8c7da]">{label}</p>
-      <p className="font-semibold">{value}</p>
+      <p className="mt-1 text-[10px] uppercase tracking-[0.09em] text-[#8ea3bf]">{label}</p>
+      <p className="mt-0.5 text-[15px] font-semibold leading-none">{formatNumber(consumed)}г</p>
+      <p className="mt-0.5 text-[10px] text-[#8da1bb]">{Math.round(ratio * 100)}%</p>
     </div>
   );
 }
