@@ -19,6 +19,7 @@ import {
 } from "@/lib/data";
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
 import { buildDayAnalysis } from "@/lib/ai";
+import { FoodThumbnail } from "@/components/food-thumbnail";
 import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -52,6 +53,20 @@ function parseWeight(value: string): number {
 
 function hasAnyNutrients(map?: Record<string, number>): boolean {
   return !!map && Object.keys(map).length > 0;
+}
+
+function getExternalImageUrl(food: Food | undefined): string | undefined {
+  if (!food) return undefined;
+  const rawSource = food.externalMeta?.rawSource;
+  if (!rawSource || typeof rawSource !== "object") return undefined;
+  const source = rawSource as Record<string, unknown>;
+  const direct =
+    source.image_front_small_url ??
+    source.image_front_url ??
+    source.image_url ??
+    source.image_small_url ??
+    source.image_thumb_url;
+  return typeof direct === "string" && direct.trim().length > 0 ? direct : undefined;
 }
 
 function scaleMap(per100g: Record<string, number> | undefined, amountG: number): Record<string, number> {
@@ -421,7 +436,7 @@ export default function Home() {
 
       <div className="app-card p-3">
         <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Тип дня</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 rounded-full bg-[#0b1320] p-1">
           <button
             type="button"
             onClick={() => updateDayType("normal")}
@@ -508,33 +523,47 @@ export default function Home() {
         ) : (
           <ul className="space-y-2">
             {entriesWithNutrients.map(({ entry, title, nutrients }) => (
-              <li key={entry.id} className="rounded-lg bg-[#0b1320] p-3">
-                <div className="mb-1 flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">{title}</p>
-                  <p className="text-xs text-[#8da1bb]">{entry.amountG} г</p>
+              <li key={entry.id} className="app-subcard p-3">
+                <div className="mb-1 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <FoodThumbnail
+                      name={title}
+                      preferredUrl={
+                        entry.sourceType === "food"
+                          ? getExternalImageUrl(foodsById.get(entry.sourceId)) ??
+                            `https://source.unsplash.com/featured/?food,${encodeURIComponent(title)}`
+                          : `https://source.unsplash.com/featured/?food,${encodeURIComponent(title)}`
+                      }
+                      size={44}
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{title}</p>
+                      <p className="mt-1 text-xs text-[#8da1bb]">{entry.amountG} г</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 opacity-75">
+                    <button
+                      type="button"
+                      onClick={() => startEditingEntry(entry)}
+                      className="icon-action-btn secondary-btn"
+                      aria-label={`Редактировать ${title}`}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteEntry(entry)}
+                      className="icon-action-btn danger-btn"
+                      aria-label={`Удалить ${title}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-xs text-[#b8c7da]">
                   {formatNumber(nutrients.kcal)} ккал · Б {formatNumber(nutrients.protein)} · Ж {formatNumber(nutrients.fat)} · У{" "}
                   {formatNumber(nutrients.carbs)}
                 </p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => startEditingEntry(entry)}
-                    className="icon-action-btn secondary-btn"
-                    aria-label={`Редактировать ${title}`}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteEntry(entry)}
-                    className="icon-action-btn danger-btn"
-                    aria-label={`Удалить ${title}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
 
                 {editingEntryId === entry.id ? (
                   <div className="mt-3 space-y-2 rounded-lg border border-[#233247] bg-[#0a111b] p-3">
@@ -685,12 +714,12 @@ function MicroNormChart({
 
   const visible = items.slice(0, 10);
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {visible.map((item) => {
         const pct = item.target ? Math.max(0, Math.min(1, item.ratio)) : 0;
         return (
-          <div key={item.label} className="app-subcard p-2">
-            <div className="mb-1 flex items-center justify-between text-xs text-[#b8c7da]">
+          <div key={item.label} className="app-subcard p-2.5">
+            <div className="mb-1.5 flex items-center justify-between text-xs text-[#b8c7da]">
               <span className="capitalize">{item.label}</span>
               <span>
                 {formatNumber(item.consumed)}
@@ -716,8 +745,8 @@ function MicroNormChart({
 function Stat({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
     <div className="app-subcard p-3">
-      <p className="text-xs text-[#8da1bb]">{label}</p>
-      <p className="mt-1 text-[1.35rem] font-semibold leading-none tracking-[-0.01em]">
+      <p className="kpi-label">{label}</p>
+      <p className="kpi-value mt-1">
         {formatNumber(value)} {unit}
       </p>
     </div>
@@ -753,9 +782,9 @@ function ProgressRow({ label, value, target, unit }: { label: string; value: num
           {formatNumber(value)} / {formatNumber(target)} {unit}
         </span>
       </div>
-      <div className="h-3 w-full overflow-hidden rounded-full bg-[#1b2a3f]">
+      <div className="progress-track">
         <div
-          className="h-full rounded-full shadow-[0_0_14px_rgba(132,225,75,0.35)]"
+          className="progress-fill"
           style={{ width: `${ratio * 100}%`, background: progressColor }}
         />
       </div>
