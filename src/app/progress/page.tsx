@@ -376,7 +376,7 @@ export default function ProgressPage() {
             type="date"
             value={dateInput}
             onChange={(event) => setDateInput(event.target.value)}
-            className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+            className="h-12 w-full rounded-lg  px-3 text-base outline-none "
             required
           />
         </label>
@@ -388,7 +388,7 @@ export default function ProgressPage() {
             inputMode="decimal"
             value={weightInput}
             onChange={(event) => setWeightInput(event.target.value)}
-            className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+            className="h-12 w-full rounded-lg  px-3 text-base outline-none "
             placeholder="Например 81.7"
             required
           />

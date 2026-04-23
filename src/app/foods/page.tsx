@@ -292,7 +292,7 @@ export default function FoodsPage() {
           placeholder="Название"
           value={form.name}
           onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
           required
         />
 
@@ -316,7 +316,7 @@ export default function FoodsPage() {
           placeholder="Заметка (необязательно)"
           value={form.note}
           onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
-          className="min-h-24 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-base outline-none"
+          className="min-h-24 w-full rounded-2xl  px-3 py-2 text-base outline-none"
         />
 
         <div className="app-subcard p-3">
@@ -348,7 +348,7 @@ export default function FoodsPage() {
               setActiveExternalQuery("");
             }
           }}
-          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
         />
         {isExternalLoading ? <p className="text-xs text-[#9db0c8]">Ищем во внешней базе...</p> : null}
         {externalError ? <p className="text-xs text-red-600">{externalError}</p> : null}
@@ -393,7 +393,7 @@ export default function FoodsPage() {
           placeholder="Поиск продукта"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
         />
       </div>
 
@@ -467,7 +467,7 @@ function NumericInput({ label, value, onChange }: { label: string; value: string
         inputMode="decimal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+        className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
         required
       />
     </label>

@@ -269,7 +269,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
         inputMode="decimal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+        className="h-12 w-full rounded-lg  px-3 text-base outline-none "
       />
     </label>
   );

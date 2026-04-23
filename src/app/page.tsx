@@ -73,7 +73,9 @@ export default function Home() {
   }
 
   useEffect(() => {
-    async function loadTodayData() {
+    let cancelled = false;
+
+    async function loadTodayData(isInitial: boolean) {
       const currentTime = nowISO();
 
       const fallbackLog: DayLog = {
@@ -99,9 +101,11 @@ export default function Home() {
         mealEntryRepo.listByDayLogId(todayDate),
       ]);
 
+      if (cancelled) return;
+
       const safeDayLog: DayLog = dayLog ?? fallbackLog;
 
-      if (!dayLog) {
+      if (!dayLog && isInitial) {
         await dayLogRepo.upsert(safeDayLog);
       }
 
@@ -111,13 +115,22 @@ export default function Home() {
       setRecipes(recipesList);
       setIngredients(recipeIngredients);
       setEntries(mealEntries);
-      setIsLoading(false);
+      if (isInitial) setIsLoading(false);
     }
 
-    loadTodayData().catch((error: unknown) => {
+    loadTodayData(true).catch((error: unknown) => {
       console.error("Failed to load today data", error);
       setIsLoading(false);
     });
+
+    const intervalId = window.setInterval(() => {
+      loadTodayData(false).catch((error: unknown) => console.error("Background today sync failed", error));
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, [todayDate]);
 
   const foodsById = useMemo(() => new Map(foods.map((food) => [food.id, food])), [foods]);
@@ -472,7 +485,7 @@ export default function Home() {
                     <select
                       value={editingSourceId}
                       onChange={(event) => setEditingSourceId(event.target.value)}
-                      className="h-10 w-full rounded-lg border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-700"
+                      className="h-10 w-full rounded-lg  px-2 text-sm outline-none "
                     >
                       <option value="">Выбери {editingSourceType === "food" ? "продукт" : "блюдо"}</option>
                       {(editingSourceType === "food" ? foods : recipes).map((item) => (
@@ -488,7 +501,7 @@ export default function Home() {
                       value={editingWeightInput}
                       onChange={(event) => setEditingWeightInput(event.target.value)}
                       placeholder="Вес, г"
-                      className="h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm outline-none focus:border-neutral-700"
+                      className="h-10 w-full rounded-lg  px-3 text-sm outline-none "
                     />
 
                     <div className="grid grid-cols-2 gap-2">
@@ -526,7 +539,7 @@ export default function Home() {
           min={0}
           value={todayLog.activeKcal}
           onChange={(event) => updateActiveKcal(Number(event.target.value))}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-lg  px-3 text-base outline-none "
         />
       </div>
 

@@ -1,5 +1,5 @@
 import { deleteById, getAll, getById, putMany, putOne } from "@/lib/data/db";
-import { mergeFoodsByUpdatedAt, pullFoodsFromCloud, pushFoodsToCloud } from "@/lib/data/food-cloud-sync";
+import { ensureFreshSync, scheduleCloudPush } from "@/lib/data/cloud-sync";
 import type {
   DayLog,
   DayTarget,
@@ -13,96 +13,122 @@ import type {
   WeightLog,
 } from "@/lib/data/types";
 
+async function withFreshSync<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    await ensureFreshSync();
+  } catch (error) {
+    console.error("Sync before read failed", error);
+  }
+  return fn();
+}
+
 export const profileRepo = {
-  get: () => getById("profile", "profile"),
-  upsert: (profile: Profile) => putOne("profile", profile),
+  get: () => withFreshSync(() => getById("profile", "profile")),
+  upsert: async (profile: Profile) => {
+    await putOne("profile", profile);
+    scheduleCloudPush();
+  },
 };
 
 export const dayTargetRepo = {
-  list: () => getAll("dayTargets"),
-  upsertMany: (targets: DayTarget[]) => putMany("dayTargets", targets),
+  list: () => withFreshSync(() => getAll("dayTargets")),
+  upsertMany: async (targets: DayTarget[]) => {
+    await putMany("dayTargets", targets);
+    scheduleCloudPush();
+  },
 };
 
 export const dayLogRepo = {
-  list: () => getAll("dayLogs"),
-  getByDate: (date: string) => getById("dayLogs", date),
-  upsert: (dayLog: DayLog) => putOne("dayLogs", dayLog),
+  list: () => withFreshSync(() => getAll("dayLogs")),
+  getByDate: (date: string) => withFreshSync(() => getById("dayLogs", date)),
+  upsert: async (dayLog: DayLog) => {
+    await putOne("dayLogs", dayLog);
+    scheduleCloudPush();
+  },
 };
 
 export const foodRepo = {
-  list: async () => {
-    const localFoods = await getAll("foods");
-    const remoteFoods = await pullFoodsFromCloud();
-
-    if (remoteFoods === null) {
-      return localFoods;
-    }
-
-    if (remoteFoods.length === 0 && localFoods.length > 0) {
-      void pushFoodsToCloud(localFoods);
-      return localFoods;
-    }
-
-    const mergedFoods = mergeFoodsByUpdatedAt(localFoods, remoteFoods);
-    await putMany("foods", mergedFoods);
-
-    const mergedIds = new Set(mergedFoods.map((item) => item.id));
-    const staleLocalIds = localFoods.filter((item) => !mergedIds.has(item.id)).map((item) => item.id);
-    await Promise.all(staleLocalIds.map((id) => deleteById("foods", id)));
-
-    void pushFoodsToCloud(mergedFoods);
-    return mergedFoods;
-  },
-  getById: (id: string) => getById("foods", id),
+  list: () => withFreshSync(() => getAll("foods")),
+  getById: (id: string) => withFreshSync(() => getById("foods", id)),
   upsert: async (food: Food) => {
     await putOne("foods", food);
-    const allFoods = await getAll("foods");
-    void pushFoodsToCloud(allFoods);
+    scheduleCloudPush();
   },
   upsertMany: async (foods: Food[]) => {
     await putMany("foods", foods);
-    const allFoods = await getAll("foods");
-    void pushFoodsToCloud(allFoods);
+    scheduleCloudPush();
   },
   remove: async (id: string) => {
     await deleteById("foods", id);
-    const allFoods = await getAll("foods");
-    void pushFoodsToCloud(allFoods);
+    scheduleCloudPush();
   },
 };
 
 export const recipeRepo = {
-  list: () => getAll("recipes"),
-  getById: (id: string) => getById("recipes", id),
-  upsert: (recipe: Recipe) => putOne("recipes", recipe),
-  upsertMany: (recipes: Recipe[]) => putMany("recipes", recipes),
-  remove: (id: string) => deleteById("recipes", id),
+  list: () => withFreshSync(() => getAll("recipes")),
+  getById: (id: string) => withFreshSync(() => getById("recipes", id)),
+  upsert: async (recipe: Recipe) => {
+    await putOne("recipes", recipe);
+    scheduleCloudPush();
+  },
+  upsertMany: async (recipes: Recipe[]) => {
+    await putMany("recipes", recipes);
+    scheduleCloudPush();
+  },
+  remove: async (id: string) => {
+    await deleteById("recipes", id);
+    scheduleCloudPush();
+  },
 };
 
 export const recipeIngredientRepo = {
-  list: () => getAll("recipeIngredients"),
-  listByRecipeId: async (recipeId: string) =>
-    (await getAll("recipeIngredients")).filter((ingredient) => ingredient.recipeId === recipeId),
-  upsertMany: (items: RecipeIngredient[]) => putMany("recipeIngredients", items),
+  list: () => withFreshSync(() => getAll("recipeIngredients")),
+  listByRecipeId: async (recipeId: string) => {
+    await ensureFreshSync();
+    return (await getAll("recipeIngredients")).filter((ingredient) => ingredient.recipeId === recipeId);
+  },
+  upsertMany: async (items: RecipeIngredient[]) => {
+    await putMany("recipeIngredients", items);
+    scheduleCloudPush();
+  },
   removeByRecipeId: async (recipeId: string) => {
     const items = await getAll("recipeIngredients");
     const toDelete = items.filter((ingredient) => ingredient.recipeId === recipeId);
     await Promise.all(toDelete.map((ingredient) => deleteById("recipeIngredients", ingredient.id)));
+    scheduleCloudPush();
   },
 };
 
 export const mealEntryRepo = {
-  list: () => getAll("mealEntries"),
-  listByDayLogId: async (dayLogId: string) => (await getAll("mealEntries")).filter((entry) => entry.dayLogId === dayLogId),
-  upsert: (entry: MealEntry) => putOne("mealEntries", entry),
-  remove: (id: string) => deleteById("mealEntries", id),
+  list: () => withFreshSync(() => getAll("mealEntries")),
+  listByDayLogId: async (dayLogId: string) => {
+    await ensureFreshSync();
+    return (await getAll("mealEntries")).filter((entry) => entry.dayLogId === dayLogId);
+  },
+  upsert: async (entry: MealEntry) => {
+    await putOne("mealEntries", entry);
+    scheduleCloudPush();
+  },
+  remove: async (id: string) => {
+    await deleteById("mealEntries", id);
+    scheduleCloudPush();
+  },
 };
 
 export const weightLogRepo = {
-  list: () => getAll("weightLogs"),
-  getByDate: async (date: string) => (await getAll("weightLogs")).find((entry) => entry.date === date),
-  upsert: (entry: WeightLog) => putOne("weightLogs", entry),
-  remove: (id: string) => deleteById("weightLogs", id),
+  list: () => withFreshSync(() => getAll("weightLogs")),
+  getByDate: async (date: string) => {
+    await ensureFreshSync();
+    return (await getAll("weightLogs")).find((entry) => entry.date === date);
+  },
+  upsert: async (entry: WeightLog) => {
+    await putOne("weightLogs", entry);
+    scheduleCloudPush();
+  },
+  remove: async (id: string) => {
+    await deleteById("weightLogs", id);
+    scheduleCloudPush();
+  },
 };
 
 export const recentItemRepo = {

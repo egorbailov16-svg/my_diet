@@ -8,3 +8,4 @@ export * from "@/lib/data/food-search";
 export * from "@/lib/data/quick-text-parser";
 export * from "@/lib/data/seed";
 export * from "@/lib/data/init";
+export * from "@/lib/data/cloud-sync";

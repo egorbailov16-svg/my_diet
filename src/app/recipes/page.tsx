@@ -62,6 +62,12 @@ export default function RecipesPage() {
       .catch((error: unknown) => console.error("Failed to load recipes page data", error))
       .finally(() => setIsLoading(false));
     setAdminUnlocked(isAdminUnlocked());
+
+    const intervalId = window.setInterval(() => {
+      loadData().catch((error: unknown) => console.error("Background recipes sync failed", error));
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   async function loadData() {
@@ -239,7 +245,7 @@ export default function RecipesPage() {
           placeholder="Название рецепта"
           value={form.name}
           onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
           required
         />
 
@@ -260,7 +266,7 @@ export default function RecipesPage() {
               <select
                 value={item.foodId}
                 onChange={(event) => updateIngredient(item.localId, { foodId: event.target.value })}
-                className="mb-2 h-11 w-full rounded-xl border border-neutral-300 px-2 text-sm outline-none"
+                className="mb-2 h-11 w-full rounded-xl  px-2 text-sm outline-none"
               >
                 <option value="">Выбери продукт</option>
                 {foods.map((food) => (
@@ -275,7 +281,7 @@ export default function RecipesPage() {
                 placeholder="Вес, г"
                 value={item.weightG}
                 onChange={(event) => updateIngredient(item.localId, { weightG: event.target.value })}
-                className="h-11 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
+                className="h-11 w-full rounded-xl  px-3 text-sm outline-none"
               />
             </div>
           ))}
@@ -292,7 +298,7 @@ export default function RecipesPage() {
               inputMode="decimal"
               value={form.cookedWeightG}
               onChange={(event) => setForm((prev) => ({ ...prev, cookedWeightG: event.target.value }))}
-              className="h-11 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
+              className="h-11 w-full rounded-xl  px-3 text-sm outline-none"
               placeholder="Например 800"
             />
           </label>
@@ -303,7 +309,7 @@ export default function RecipesPage() {
               inputMode="decimal"
               value={form.portionWeightG}
               onChange={(event) => setForm((prev) => ({ ...prev, portionWeightG: event.target.value }))}
-              className="h-11 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
+              className="h-11 w-full rounded-xl  px-3 text-sm outline-none"
             />
           </label>
         </div>
@@ -340,7 +346,7 @@ export default function RecipesPage() {
           placeholder="Поиск рецепта"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
         />
       </div>
 

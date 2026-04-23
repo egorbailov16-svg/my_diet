@@ -559,7 +559,7 @@ export default function AddEntryPage() {
           value={quickInput}
           onChange={(event) => setQuickInput(event.target.value)}
           placeholder="Пример: 60 г овсянки + 30 г протеина"
-          className="min-h-24 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-base outline-none"
+          className="min-h-24 w-full rounded-2xl  px-3 py-2 text-base outline-none"
         />
         <button type="button" onClick={() => parseQuickTextToDraft()} className="h-11 w-full rounded-2xl secondary-btn text-sm font-semibold">
           {isResolvingExternal ? "Подбираю продукты..." : "Разобрать в draft"}
@@ -613,7 +613,7 @@ export default function AddEntryPage() {
                       prev.map((draft) => (draft.id === item.id ? { ...draft, sourceId: event.target.value } : draft)),
                     )
                   }
-                  className="mb-2 h-10 w-full rounded-xl border border-neutral-300 px-2 text-sm outline-none"
+                  className="mb-2 h-10 w-full rounded-xl  px-2 text-sm outline-none"
                 >
                   <option value="">Выбери {item.sourceType === "food" ? "продукт" : "рецепт"}</option>
                   {(item.sourceType === "food" ? foods : recipes).map((entity) => (
@@ -632,7 +632,7 @@ export default function AddEntryPage() {
                     )
                   }
                   placeholder="Вес, г"
-                  className="h-10 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
+                  className="h-10 w-full rounded-xl  px-3 text-sm outline-none"
                 />
               </div>
             ))}
@@ -704,7 +704,7 @@ export default function AddEntryPage() {
           placeholder={entryType === "food" ? "Поиск продукта" : "Поиск блюда"}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
         />
       </div>
 
@@ -743,7 +743,7 @@ export default function AddEntryPage() {
           inputMode="decimal"
           value={weightInput}
           onChange={(event) => setWeightInput(event.target.value)}
-          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
+          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
         />
       </div>
 
