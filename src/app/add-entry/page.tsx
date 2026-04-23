@@ -524,22 +524,22 @@ export default function AddEntryPage() {
   }
 
   return (
-    <section className="space-y-4 pb-2">
-      <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Добавить прием</p>
-        <h1 className="text-xl font-semibold">Добавить прием пищи</h1>
+    <section className="space-y-4 pb-2 text-neutral-100">
+      <header className="space-y-2">
+        <p className="screen-subtitle">Быстрый логинг еды</p>
+        <h1 className="screen-title">Добавить прием</h1>
       </header>
 
-      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Быстрый текстовый ввод (v1, локально)</p>
+      <div className="app-card space-y-3 p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Быстрый текстовый ввод (v1, локально)</p>
         <button
           type="button"
           onClick={startVoiceInput}
-          className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold"
+          className="h-11 w-full rounded-2xl secondary-btn text-sm font-semibold"
         >
           🎤 Голосовой ввод
         </button>
-        <p className="text-xs text-neutral-600">
+        <p className="text-xs text-[#9db0c8]">
           Состояние:{" "}
           {voiceState === "idle"
             ? "ожидание"
@@ -553,27 +553,27 @@ export default function AddEntryPage() {
                     ? "недоступно"
                     : "ошибка"}
         </p>
-        {voiceText ? <p className="text-xs text-neutral-700">Распознано: {voiceText}</p> : null}
+        {voiceText ? <p className="text-xs text-[#b8c7da]">Распознано: {voiceText}</p> : null}
         {voiceError ? <p className="text-xs text-red-700">Детали: {voiceError}</p> : null}
         <textarea
           value={quickInput}
           onChange={(event) => setQuickInput(event.target.value)}
           placeholder="Пример: 60 г овсянки + 30 г протеина"
-          className="min-h-20 w-full rounded-lg border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-700"
+          className="min-h-24 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-base outline-none"
         />
-        <button type="button" onClick={() => parseQuickTextToDraft()} className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold">
+        <button type="button" onClick={() => parseQuickTextToDraft()} className="h-11 w-full rounded-2xl secondary-btn text-sm font-semibold">
           {isResolvingExternal ? "Подбираю продукты..." : "Разобрать в draft"}
         </button>
 
         {quickDraft.length > 0 ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Черновик перед сохранением</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Черновик перед сохранением</p>
             {quickDraft.map((item, index) => (
-              <div key={item.id} className="rounded-lg border border-neutral-200 p-2">
-                <p className="mb-1 text-xs text-neutral-500">
+              <div key={item.id} className="app-subcard p-2">
+                <p className="mb-1 text-xs text-[#9db0c8]">
                   {index + 1}. {item.parsed.quantity} {unitLabel(item.parsed.unit)} {item.parsed.productName}
                 </p>
-                <p className="mb-1 text-xs text-neutral-500">Confidence: {(item.confidence * 100).toFixed(0)}%</p>
+                <p className="mb-1 text-xs text-[#9db0c8]">Confidence: {(item.confidence * 100).toFixed(0)}%</p>
                 <div className="mb-2 grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -585,7 +585,7 @@ export default function AddEntryPage() {
                       )
                     }
                     className={`h-9 rounded-lg text-xs font-semibold ${
-                      item.sourceType === "food" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+                      item.sourceType === "food" ? "accent-btn" : "secondary-btn"
                     }`}
                   >
                     Продукт
@@ -600,7 +600,7 @@ export default function AddEntryPage() {
                       )
                     }
                     className={`h-9 rounded-lg text-xs font-semibold ${
-                      item.sourceType === "recipe" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+                      item.sourceType === "recipe" ? "accent-btn" : "secondary-btn"
                     }`}
                   >
                     Рецепт
@@ -613,7 +613,7 @@ export default function AddEntryPage() {
                       prev.map((draft) => (draft.id === item.id ? { ...draft, sourceId: event.target.value } : draft)),
                     )
                   }
-                  className="mb-2 h-10 w-full rounded-lg border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-700"
+                  className="mb-2 h-10 w-full rounded-xl border border-neutral-300 px-2 text-sm outline-none"
                 >
                   <option value="">Выбери {item.sourceType === "food" ? "продукт" : "рецепт"}</option>
                   {(item.sourceType === "food" ? foods : recipes).map((entity) => (
@@ -632,21 +632,21 @@ export default function AddEntryPage() {
                     )
                   }
                   placeholder="Вес, г"
-                  className="h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm outline-none focus:border-neutral-700"
+                  className="h-10 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
                 />
               </div>
             ))}
             <button
               type="button"
               onClick={saveQuickDraft}
-              className="h-11 w-full rounded-lg bg-neutral-900 text-sm font-semibold text-white"
+              className="h-11 w-full rounded-2xl accent-btn text-sm font-semibold"
             >
               Подтвердить и сохранить draft
             </button>
           </div>
         ) : null}
 
-        {quickMessage ? <p className="text-xs text-neutral-600">{quickMessage}</p> : null}
+        {quickMessage ? <p className="text-xs text-[#9db0c8]">{quickMessage}</p> : null}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -657,7 +657,7 @@ export default function AddEntryPage() {
             setSelectedId("");
           }}
           className={`h-12 rounded-lg text-sm font-semibold ${
-            entryType === "food" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+            entryType === "food" ? "accent-btn" : "secondary-btn"
           }`}
         >
           Продукт
@@ -669,7 +669,7 @@ export default function AddEntryPage() {
             setSelectedId("");
           }}
           className={`h-12 rounded-lg text-sm font-semibold ${
-            entryType === "recipe" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+            entryType === "recipe" ? "accent-btn" : "secondary-btn"
           }`}
         >
           Блюдо
@@ -698,21 +698,21 @@ export default function AddEntryPage() {
         }}
       />
 
-      <div className="rounded-xl border border-neutral-200 p-3">
+      <div className="app-card p-3">
         <input
           type="text"
           placeholder={entryType === "food" ? "Поиск продукта" : "Поиск блюда"}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
         />
       </div>
 
-      <div className="max-h-60 space-y-2 overflow-y-auto rounded-xl border border-neutral-200 p-3">
+      <div className="app-card max-h-60 space-y-2 overflow-y-auto p-3">
         {isLoading ? (
-          <p className="text-sm text-neutral-500">Загрузка...</p>
+          <p className="text-sm text-[#9db0c8]">Загрузка...</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-neutral-500">Ничего не найдено.</p>
+          <p className="text-sm text-[#9db0c8]">Ничего не найдено.</p>
         ) : (
           items.map((item) => (
             <button
@@ -720,11 +720,11 @@ export default function AddEntryPage() {
               type="button"
               onClick={() => setSelectedId(item.id)}
               className={`w-full rounded-lg border px-3 py-3 text-left ${
-                selectedId === item.id ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 bg-white text-neutral-900"
+                selectedId === item.id ? "border-[#8ff65b] bg-[#143018] text-[#ebffe1]" : "border-[#2a3a52] bg-[#0a111b] text-[#e8f0fc]"
               }`}
             >
               <p className="text-sm font-semibold">{item.title}</p>
-              <p className={`text-xs ${selectedId === item.id ? "text-neutral-200" : "text-neutral-500"}`}>
+              <p className={`text-xs ${selectedId === item.id ? "text-[#d6ebcc]" : "text-[#8da1bb]"}`}>
                 {item.subtitle}
                 {item.useCount > 0 ? ` · Частота: ${item.useCount}` : ""}
               </p>
@@ -733,8 +733,8 @@ export default function AddEntryPage() {
         )}
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <label htmlFor="entry-weight" className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+      <div className="app-card p-3">
+        <label htmlFor="entry-weight" className="mb-2 block text-xs font-medium uppercase tracking-wide text-[#9db0c8]">
           Вес, г
         </label>
         <input
@@ -743,16 +743,16 @@ export default function AddEntryPage() {
           inputMode="decimal"
           value={weightInput}
           onChange={(event) => setWeightInput(event.target.value)}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
         />
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">КБЖУ записи</p>
-        <p className="text-sm text-neutral-700">
+      <div className="app-card p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">КБЖУ записи</p>
+        <p className="text-sm text-[#e8f0fc]">
           {selectedTitle || "Не выбрано"} · {formatNumber(parseWeight(weightInput))} г
         </p>
-        <p className="mt-1 text-sm">
+        <p className="mt-1 text-sm text-[#b8c7da]">
           {formatNumber(preview.kcal)} ккал · Б {formatNumber(preview.protein)} · Ж {formatNumber(preview.fat)} · У {formatNumber(preview.carbs)}
         </p>
       </div>
@@ -761,12 +761,12 @@ export default function AddEntryPage() {
         type="button"
         onClick={saveEntry}
         disabled={!selectedId || parseWeight(weightInput) <= 0}
-        className="flex h-12 w-full items-center justify-center rounded-lg bg-neutral-900 text-sm font-semibold text-white disabled:opacity-40"
+        className="flex h-12 w-full items-center justify-center rounded-2xl accent-btn text-sm font-semibold disabled:opacity-40"
       >
         Сохранить в текущий день
       </button>
 
-      <Link href="/" className="flex h-12 w-full items-center justify-center rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
+      <Link href="/" className="flex h-12 w-full items-center justify-center rounded-2xl secondary-btn text-sm font-semibold">
         Назад к Сегодня
       </Link>
     </section>
@@ -795,8 +795,8 @@ function QuickPickSection({
   }
 
   return (
-    <div className="rounded-xl border border-neutral-200 p-3">
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">{title}</p>
+    <div className="app-card p-3">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">{title}</p>
       <div className="flex flex-wrap gap-2">
         {mapped.map((item) => (
           <button
@@ -804,7 +804,7 @@ function QuickPickSection({
             type="button"
             onClick={() => onSelect(item.id, item.amount)}
             className={`h-10 rounded-lg px-3 text-xs font-semibold ${
-              selectedId === item.id ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+              selectedId === item.id ? "accent-btn" : "secondary-btn"
             }`}
           >
             {item.name}

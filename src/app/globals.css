@@ -1,15 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #05070b;
-  --surface: #0b0f16;
-  --surface-2: #101722;
-  --foreground: #f5f7fb;
-  --muted: #93a0b5;
-  --border: #1f2a3a;
-  --accent: #8ff65b;
-  --accent-2: #4c8dff;
-  --danger: #ff4f7a;
+  --background: #06070a;
+  --surface: #0d1117;
+  --surface-2: #10141b;
+  --foreground: #f5f7fa;
+  --muted: #98a2b3;
+  --muted-2: #727b8a;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.11);
+  --accent: #84e14b;
+  --accent-strong: #7cff4f;
+  --accent-2: #4d8dff;
+  --danger: #ff5a6b;
+  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 8px 18px rgba(0, 0, 0, 0.35);
+  --glow-accent: 0 0 0 1px rgba(132, 225, 75, 0.18), 0 0 26px rgba(132, 225, 75, 0.22);
 }
 
 @theme inline {
@@ -27,7 +33,8 @@ body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0.01em;
 }
 
 * {
@@ -37,23 +44,83 @@ body {
 input,
 select,
 textarea {
-  background: #0a111b;
+  background: #0a1017;
   color: var(--foreground);
   border-color: var(--border);
+  border-radius: 16px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #71819b;
+  color: #6b7280;
 }
 
 .app-card {
   border: 1px solid var(--border);
   background: linear-gradient(180deg, var(--surface), var(--surface-2));
-  border-radius: 14px;
+  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+}
+
+.app-subcard {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0a1017;
+  border-radius: 18px;
+}
+
+.screen-title {
+  font-size: 1.85rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.screen-subtitle {
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .accent-btn {
-  background: linear-gradient(180deg, #a8ff74, #7ce14c);
-  color: #081008;
+  background: linear-gradient(180deg, #95f05f, var(--accent));
+  color: #071004;
+  box-shadow: var(--glow-accent);
+}
+
+.secondary-btn {
+  background: #0d1520;
+  color: #d9e3f2;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.danger-btn {
+  background: rgba(242, 72, 92, 0.12);
+  color: #ff7789;
+  border: 1px solid rgba(255, 90, 107, 0.28);
+}
+
+.pill-segment {
+  background: #0d1520;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+}
+
+.glass-icon-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(14, 20, 31, 0.92);
+  color: #d4dfef;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(132, 225, 75, 0.55);
+  box-shadow: 0 0 0 3px rgba(132, 225, 75, 0.14);
 }

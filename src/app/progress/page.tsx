@@ -297,18 +297,18 @@ export default function ProgressPage() {
 
   return (
     <section className="space-y-4 pb-2 text-neutral-100">
-      <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-[#9db0c8]">Отчет</p>
-        <h1 className="text-xl font-semibold">Отчет</h1>
+      <header className="space-y-2">
+        <p className="screen-subtitle">Аналитика периода</p>
+        <h1 className="screen-title">Отчет</h1>
       </header>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="app-subcard grid grid-cols-3 gap-2 p-2">
         {[7, 14, 30].map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => setRangeDays(value as PeriodRangeDays)}
-            className={`h-11 rounded-lg text-sm font-semibold ${rangeDays === value ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"}`}
+            className={`h-10 rounded-xl text-sm font-semibold ${rangeDays === value ? "accent-btn" : "pill-segment text-[#c7d4e5]"}`}
           >
             {value} дней
           </button>

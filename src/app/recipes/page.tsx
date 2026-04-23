@@ -221,14 +221,14 @@ export default function RecipesPage() {
   }
 
   return (
-    <section className="space-y-4 pb-2">
-      <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Добавить блюдо</p>
-        <h1 className="text-xl font-semibold">Добавить блюдо</h1>
+    <section className="space-y-4 pb-2 text-neutral-100">
+      <header className="space-y-2">
+        <p className="screen-subtitle">Конструктор рецептов</p>
+        <h1 className="screen-title">Добавить блюдо</h1>
       </header>
 
-      <form onSubmit={onSaveRecipe} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+      <form onSubmit={onSaveRecipe} className="app-card space-y-3 p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">
           {editingRecipeId ? "Редактирование рецепта" : "Новый рецепт"}
         </p>
         {!adminUnlocked ? <p className="text-xs text-amber-700">Только админ может менять рецепты. Включи режим в Настройках.</p> : null}
@@ -238,20 +238,20 @@ export default function RecipesPage() {
           placeholder="Название рецепта"
           value={form.name}
           onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
           required
         />
 
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Ингредиенты</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Ингредиенты</p>
           {form.ingredients.map((item, index) => (
-            <div key={item.localId} className="rounded-lg border border-neutral-200 p-2">
+            <div key={item.localId} className="app-subcard p-2">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs text-neutral-500">Ингредиент {index + 1}</p>
+                <p className="text-xs text-[#9db0c8]">Ингредиент {index + 1}</p>
                 <button
                   type="button"
                   onClick={() => removeIngredient(item.localId)}
-                  className="h-9 rounded-md bg-neutral-100 px-3 text-xs font-semibold text-neutral-700"
+                  className="h-9 rounded-xl danger-btn px-3 text-xs font-semibold"
                 >
                   Убрать
                 </button>
@@ -259,7 +259,7 @@ export default function RecipesPage() {
               <select
                 value={item.foodId}
                 onChange={(event) => updateIngredient(item.localId, { foodId: event.target.value })}
-                className="mb-2 h-11 w-full rounded-lg border border-neutral-300 px-2 text-sm outline-none focus:border-neutral-700"
+                className="mb-2 h-11 w-full rounded-xl border border-neutral-300 px-2 text-sm outline-none"
               >
                 <option value="">Выбери продукт</option>
                 {foods.map((food) => (
@@ -274,91 +274,91 @@ export default function RecipesPage() {
                 placeholder="Вес, г"
                 value={item.weightG}
                 onChange={(event) => updateIngredient(item.localId, { weightG: event.target.value })}
-                className="h-11 w-full rounded-lg border border-neutral-300 px-3 text-sm outline-none focus:border-neutral-700"
+                className="h-11 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
               />
             </div>
           ))}
-          <button type="button" onClick={addIngredientRow} disabled={!adminUnlocked} className="h-11 w-full rounded-lg bg-neutral-100 text-sm font-semibold disabled:opacity-40">
+          <button type="button" onClick={addIngredientRow} disabled={!adminUnlocked} className="h-11 w-full rounded-xl secondary-btn text-sm font-semibold disabled:opacity-40">
             + Добавить ингредиент
           </button>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <label className="space-y-1">
-            <span className="text-xs text-neutral-500">Готовый вес, г</span>
+            <span className="text-xs text-[#9db0c8]">Готовый вес, г</span>
             <input
               type="text"
               inputMode="decimal"
               value={form.cookedWeightG}
               onChange={(event) => setForm((prev) => ({ ...prev, cookedWeightG: event.target.value }))}
-              className="h-11 w-full rounded-lg border border-neutral-300 px-3 text-sm outline-none focus:border-neutral-700"
+              className="h-11 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
               placeholder="Например 800"
             />
           </label>
           <label className="space-y-1">
-            <span className="text-xs text-neutral-500">Порция, г</span>
+            <span className="text-xs text-[#9db0c8]">Порция, г</span>
             <input
               type="text"
               inputMode="decimal"
               value={form.portionWeightG}
               onChange={(event) => setForm((prev) => ({ ...prev, portionWeightG: event.target.value }))}
-              className="h-11 w-full rounded-lg border border-neutral-300 px-3 text-sm outline-none focus:border-neutral-700"
+              className="h-11 w-full rounded-xl border border-neutral-300 px-3 text-sm outline-none"
             />
           </label>
         </div>
 
-        <div className="rounded-lg bg-neutral-50 p-3 text-sm">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Авторасчет</p>
-          <p className="text-neutral-700">
+        <div className="app-subcard p-3 text-sm">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Авторасчет</p>
+          <p className="text-[#e8f0fc]">
             Всего: {format(totals.totalForRecipe.kcal)} ккал · Б {format(totals.totalForRecipe.protein)} · Ж {format(totals.totalForRecipe.fat)} · У{" "}
             {format(totals.totalForRecipe.carbs)}
           </p>
-          <p className="mt-1 text-neutral-700">
+          <p className="mt-1 text-[#b8c7da]">
             На 100 г: {format(totals.per100g.kcal)} ккал · Б {format(totals.per100g.protein)} · Ж {format(totals.per100g.fat)} · У{" "}
             {format(totals.per100g.carbs)}
           </p>
-          <p className="mt-1 text-neutral-700">
+          <p className="mt-1 text-[#b8c7da]">
             Порция {format(toNumber(form.portionWeightG))} г: {format(portionNutrients.kcal)} ккал · Б {format(portionNutrients.protein)} · Ж{" "}
             {format(portionNutrients.fat)} · У {format(portionNutrients.carbs)}
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <button type="submit" disabled={!adminUnlocked} className="h-12 rounded-lg bg-neutral-900 text-sm font-semibold text-white disabled:opacity-40">
+          <button type="submit" disabled={!adminUnlocked} className="h-12 rounded-2xl accent-btn text-sm font-semibold disabled:opacity-40">
             {editingRecipeId ? "Сохранить" : "Сохранить рецепт"}
           </button>
-          <button type="button" onClick={resetForm} className="h-12 rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
+          <button type="button" onClick={resetForm} className="h-12 rounded-2xl secondary-btn text-sm font-semibold">
             Очистить
           </button>
         </div>
       </form>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
+      <div className="app-card p-3">
         <input
           type="text"
           placeholder="Поиск рецепта"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
         />
       </div>
 
       <div className="space-y-2">
         {isLoading ? (
-          <p className="text-sm text-neutral-500">Загрузка...</p>
+          <p className="text-sm text-[#9db0c8]">Загрузка...</p>
         ) : filteredRecipes.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-500">Рецептов пока нет.</p>
+          <p className="rounded-xl border border-dashed border-[#2a3a52] p-4 text-sm text-[#9db0c8]">Рецептов пока нет.</p>
         ) : (
           filteredRecipes.map((recipe) => {
             const recipeIngredients = ingredientsByRecipeId.get(recipe.id) ?? [];
             const stats = calculateRecipePer100g(recipe, recipeIngredients, foodsById);
 
             return (
-              <article key={recipe.id} className="rounded-xl border border-neutral-200 p-3">
+              <article key={recipe.id} className="app-card p-3">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold">{recipe.name}</h2>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-[#8da1bb]">
                       Ингредиентов: {recipeIngredients.length} · Вес блюда: {recipe.cookedWeightG ?? "не указан"} г
                     </p>
                   </div>
@@ -367,7 +367,7 @@ export default function RecipesPage() {
                       type="button"
                       onClick={() => onEditRecipe(recipe)}
                       disabled={!adminUnlocked}
-                      className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800"
+                      className="h-10 rounded-xl secondary-btn px-3 text-xs font-semibold"
                     >
                       Изм.
                     </button>
@@ -375,17 +375,17 @@ export default function RecipesPage() {
                       type="button"
                       onClick={() => onDeleteRecipe(recipe.id)}
                       disabled={!adminUnlocked}
-                      className="h-10 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700"
+                      className="h-10 rounded-xl danger-btn px-3 text-xs font-semibold"
                     >
                       Удал.
                     </button>
                   </div>
                 </div>
-                <p className="text-xs text-neutral-700">
+                <p className="text-xs text-[#e8f0fc]">
                   Всего: {format(stats.totalForRecipe.kcal)} ккал · Б {format(stats.totalForRecipe.protein)} · Ж {format(stats.totalForRecipe.fat)}
                   {" · "}У {format(stats.totalForRecipe.carbs)}
                 </p>
-                <p className="mt-1 text-xs text-neutral-700">
+                <p className="mt-1 text-xs text-[#b8c7da]">
                   На 100 г: {format(stats.per100g.kcal)} ккал · Б {format(stats.per100g.protein)} · Ж {format(stats.per100g.fat)} · У{" "}
                   {format(stats.per100g.carbs)}
                 </p>

@@ -313,18 +313,20 @@ export default function Home() {
 
   return (
     <section className="space-y-4 pb-2 text-neutral-100">
-      <header className="space-y-1">
+      <header className="space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-[#9db0c8]">Сегодня</p>
-            <h1 className="text-xl font-semibold capitalize">{todayLabel}</h1>
+            <p className="screen-subtitle capitalize">{todayLabel}</p>
+            <h1 className="screen-title">Сегодня</h1>
           </div>
-          <Link
-            href="/settings"
-            className="flex h-10 items-center justify-center rounded-lg bg-[#0d1520] px-3 text-xs font-semibold text-[#c7d4e5]"
-          >
-            Настройки
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/settings" className="glass-icon-btn" aria-label="Настройки">
+              ⚙
+            </Link>
+            <button type="button" className="glass-icon-btn" aria-label="Дополнительно">
+              ⋯
+            </button>
+          </div>
         </div>
       </header>
 
@@ -335,7 +337,7 @@ export default function Home() {
             type="button"
             onClick={() => updateDayType("normal")}
             className={`h-12 rounded-lg text-sm font-semibold ${
-              todayLog.dayType === "normal" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
+              todayLog.dayType === "normal" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
             }`}
           >
             Обычный
@@ -344,7 +346,7 @@ export default function Home() {
             type="button"
             onClick={() => updateDayType("strength")}
             className={`h-12 rounded-lg text-sm font-semibold ${
-              todayLog.dayType === "strength" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
+              todayLog.dayType === "strength" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
             }`}
           >
             Силовой
@@ -352,7 +354,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="app-card p-3">
+      <div className="app-card p-4">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Итоги за день</p>
         <div className="grid grid-cols-2 gap-3">
           <Stat label="Калории" value={dayTotals?.consumed.kcal ?? 0} unit="ккал" />
@@ -363,7 +365,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="app-card p-3">
+      <div className="app-card p-4">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Прогресс по цели</p>
         {currentTarget && dayTotals ? (
           <div className="mt-3 space-y-2">
@@ -391,7 +393,7 @@ export default function Home() {
         {!currentTarget ? <p className="text-sm text-[#9db0c8]">Цели дня не найдены.</p> : null}
       </div>
 
-      <div className="app-card p-3">
+      <div className="app-card p-4">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Осталось до цели</p>
         {remaining ? (
           <div className="space-y-2 text-sm">
@@ -405,7 +407,7 @@ export default function Home() {
         )}
       </div>
 
-      <div className="app-card p-3">
+      <div className="app-card p-4">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Записи за день</p>
         {entriesWithNutrients.length === 0 ? (
           <p className="text-sm text-[#9db0c8]">Пока нет записей. Добавь первый прием пищи.</p>
@@ -514,7 +516,7 @@ export default function Home() {
         )}
       </div>
 
-      <div className="app-card p-3">
+      <div className="app-card p-4">
         <label htmlFor="active-kcal" className="mb-2 block text-xs font-medium uppercase tracking-wide text-[#9db0c8]">
           Активные ккал (ручной ввод)
         </label>
@@ -528,7 +530,7 @@ export default function Home() {
         />
       </div>
 
-      <div className="app-card p-3">
+      <div className="app-card p-4">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Завершение дня</p>
         <p className="mb-3 text-sm text-[#b8c7da]">Статус: {todayLog.status === "completed" ? "завершен" : "активный"}</p>
         <div className="grid grid-cols-2 gap-2">
@@ -542,7 +544,7 @@ export default function Home() {
       </div>
 
       {todayLog.dayAnalysis ? (
-        <div className="app-card p-3">
+      <div className="app-card p-4">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Итог дня</p>
           <p className="text-sm text-[#e8f0fc]">{todayLog.dayAnalysis.summary}</p>
           <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Что хорошо</p>
@@ -568,7 +570,7 @@ export default function Home() {
 
       <Link
         href="/add-entry"
-        className="flex h-12 w-full items-center justify-center rounded-lg accent-btn text-sm font-semibold"
+        className="flex h-12 w-full items-center justify-center rounded-2xl accent-btn text-sm font-semibold"
       >
         Быстро добавить еду
       </Link>

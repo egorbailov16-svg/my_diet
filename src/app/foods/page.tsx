@@ -246,14 +246,23 @@ export default function FoodsPage() {
   }
 
   return (
-    <section className="space-y-4 pb-2">
-      <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Продукты</p>
-        <h1 className="text-xl font-semibold">Продукты</h1>
+    <section className="space-y-4 pb-2 text-neutral-100">
+      <header className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="screen-subtitle">Локальная база</p>
+            <h1 className="screen-title">Продукты</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" className="glass-icon-btn" aria-label="Добавить">＋</button>
+            <button type="button" className="glass-icon-btn" aria-label="Опции">⋯</button>
+          </div>
+        </div>
       </header>
 
-      <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+      <form onSubmit={onSubmit} className="app-card space-y-3 p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Basic Information</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-[#dce8f8]">
           {editingId ? "Редактировать продукт" : "Добавить продукт"}
         </p>
         {!adminUnlocked ? <p className="text-xs text-amber-700">Только админ может менять базу. Включи режим в Настройках.</p> : null}
@@ -263,10 +272,11 @@ export default function FoodsPage() {
           placeholder="Название"
           value={form.name}
           onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
           required
         />
 
+        <p className="pt-1 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Nutrition (per 100g)</p>
         <div className="grid grid-cols-2 gap-2">
           <NumericInput label="Ккал /100г" value={form.kcal} onChange={(value) => setForm((prev) => ({ ...prev, kcal: value }))} />
           <NumericInput
@@ -286,25 +296,25 @@ export default function FoodsPage() {
           placeholder="Заметка (необязательно)"
           value={form.note}
           onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
-          className="min-h-20 w-full rounded-lg border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-700"
+          className="min-h-24 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-base outline-none"
         />
 
-        <div className="rounded-lg border border-neutral-200 p-2">
-          <p className="text-xs text-neutral-500">Источник: локальный продукт</p>
+        <div className="app-subcard p-3">
+          <p className="text-xs text-[#9db0c8]">Источник: локальный продукт</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <button type="submit" disabled={!adminUnlocked} className="h-12 rounded-lg bg-neutral-900 text-sm font-semibold text-white disabled:opacity-40">
+          <button type="submit" disabled={!adminUnlocked} className="h-12 rounded-2xl accent-btn text-sm font-semibold disabled:opacity-40">
             {editingId ? "Сохранить" : "Добавить"}
           </button>
-          <button type="button" onClick={resetForm} className="h-12 rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
+          <button type="button" onClick={resetForm} className="h-12 rounded-2xl secondary-btn text-sm font-semibold">
             Очистить
           </button>
         </div>
       </form>
 
-      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Внешний поиск (OpenFoodFacts)</p>
+      <div className="app-card space-y-3 p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Search External Databases</p>
         <input
           type="text"
           placeholder="Найти во внешней базе (минимум 2 символа)"
@@ -318,21 +328,21 @@ export default function FoodsPage() {
               setActiveExternalQuery("");
             }
           }}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
         />
-        {isExternalLoading ? <p className="text-xs text-neutral-600">Ищем во внешней базе...</p> : null}
+        {isExternalLoading ? <p className="text-xs text-[#9db0c8]">Ищем во внешней базе...</p> : null}
         {externalError ? <p className="text-xs text-red-600">{externalError}</p> : null}
         {!isExternalLoading && activeExternalQuery.length >= 2 && externalResults.length === 0 && !externalError ? (
-          <p className="text-xs text-neutral-600">Ничего не найдено во внешней базе.</p>
+          <p className="text-xs text-[#9db0c8]">Ничего не найдено во внешней базе.</p>
         ) : null}
         {externalResults.length > 0 ? (
           <div className="max-h-64 space-y-2 overflow-y-auto">
             {externalResults.map((item) => (
-              <article key={`${item.provider}_${item.externalId}`} className="rounded-lg border border-neutral-200 p-3">
+              <article key={`${item.provider}_${item.externalId}`} className="app-subcard p-3">
                 <div className="mb-1 flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-semibold">{item.name}</p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-[#8da1bb]">
                       {item.provider}
                       {item.brand ? ` · ${item.brand}` : ""}
                     </p>
@@ -341,12 +351,12 @@ export default function FoodsPage() {
                     type="button"
                     onClick={() => importExternalFood(item)}
                     disabled={!item.hasCompleteNutrients || !adminUnlocked}
-                    className="h-10 rounded-lg bg-neutral-900 px-3 text-xs font-semibold text-white disabled:opacity-40"
+                    className="h-10 rounded-xl accent-btn px-3 text-xs font-semibold disabled:opacity-40"
                   >
                     Импорт
                   </button>
                 </div>
-                <p className="text-xs text-neutral-600">
+                <p className="text-xs text-[#b8c7da]">
                   {item.nutrientsPer100g.kcal ?? "—"} ккал · Б {item.nutrientsPer100g.protein ?? "—"} · Ж {item.nutrientsPer100g.fat ?? "—"} ·
                   {" "}У {item.nutrientsPer100g.carbs ?? "—"} (на 100 г)
                 </p>
@@ -357,34 +367,34 @@ export default function FoodsPage() {
         ) : null}
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
+      <div className="app-card p-3">
         <input
           type="text"
           placeholder="Поиск продукта"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+          className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
         />
       </div>
 
       <div className="space-y-2">
         {isLoading ? (
-          <p className="text-sm text-neutral-500">Загрузка...</p>
+          <p className="text-sm text-[#9db0c8]">Загрузка...</p>
         ) : filteredFoods.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-500">Ничего не найдено.</p>
+          <p className="rounded-xl border border-dashed border-[#2a3a52] p-4 text-sm text-[#9db0c8]">Ничего не найдено.</p>
         ) : (
           filteredFoods.map((food) => (
-            <article key={food.id} className="rounded-xl border border-neutral-200 p-3">
+            <article key={food.id} className="app-card p-3">
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold">{food.name}</h2>
                   <span
-                    className={`mt-1 inline-block rounded px-2 py-1 text-[11px] font-medium ${
+                    className={`mt-1 inline-block rounded-xl px-2 py-1 text-[11px] font-medium ${
                       food.source === "custom"
-                        ? "bg-neutral-900 text-white"
+                        ? "bg-[#143018] text-[#8fff70]"
                         : food.source === "imported"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-neutral-200 text-neutral-700"
+                          ? "bg-[#102744] text-[#6da3ff]"
+                          : "bg-[#1b2431] text-[#a8b5c6]"
                     }`}
                   >
                     {sourceLabel(food.source)}
@@ -395,7 +405,7 @@ export default function FoodsPage() {
                     type="button"
                     onClick={() => startEdit(food)}
                     disabled={food.source === "external" || !adminUnlocked}
-                    className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800 disabled:opacity-40"
+                    className="h-10 rounded-xl secondary-btn px-3 text-xs font-semibold disabled:opacity-40"
                   >
                     Изм.
                   </button>
@@ -403,18 +413,18 @@ export default function FoodsPage() {
                     type="button"
                     onClick={() => onDelete(food)}
                     disabled={food.source === "external" || !adminUnlocked}
-                    className="h-10 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700 disabled:opacity-40"
+                    className="h-10 rounded-xl danger-btn px-3 text-xs font-semibold disabled:opacity-40"
                   >
                     Удал.
                   </button>
                 </div>
               </div>
 
-              <p className="text-xs text-neutral-600">
+              <p className="text-xs text-[#b8c7da]">
                 {food.nutrientsPer100g.kcal} ккал · Б {food.nutrientsPer100g.protein} · Ж {food.nutrientsPer100g.fat} · У{" "}
                 {food.nutrientsPer100g.carbs} (на 100 г)
               </p>
-              {food.note ? <p className="mt-2 text-xs text-neutral-500">{food.note}</p> : null}
+              {food.note ? <p className="mt-2 text-xs text-[#8da1bb]">{food.note}</p> : null}
             </article>
           ))
         )}
@@ -426,13 +436,13 @@ export default function FoodsPage() {
 function NumericInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="space-y-1">
-      <span className="text-xs text-neutral-500">{label}</span>
+      <span className="text-xs text-[#9db0c8]">{label}</span>
       <input
         type="text"
         inputMode="decimal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full rounded-lg border border-neutral-300 px-3 text-base outline-none focus:border-neutral-700"
+        className="h-12 w-full rounded-2xl border border-neutral-300 px-3 text-base outline-none"
         required
       />
     </label>
