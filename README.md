@@ -55,7 +55,18 @@ npm run build
 
 ### Environment variables
 
-No environment variables are required for the current MVP.
+Optional cross-device products sync:
+
+```bash
+NEXT_PUBLIC_FOODS_SYNC_URL=https://jsonblob.com/api/jsonBlob/<your_blob_id>
+```
+
+Notes:
+
+- If variable is empty, app stays local-only (IndexedDB).
+- If variable is set, products (`foods`) are synced across devices via shared JSON endpoint.
+- Use one shared URL on all devices (same deployed app env) to see same products list.
+- Current code already includes a default shared endpoint, so sync works out-of-the-box after deploy.
 
 ### Initialize git (if needed)
 

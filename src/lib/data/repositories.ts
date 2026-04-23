@@ -1,4 +1,5 @@
 import { deleteById, getAll, getById, putMany, putOne } from "@/lib/data/db";
+import { mergeFoodsByUpdatedAt, pullFoodsFromCloud, pushFoodsToCloud } from "@/lib/data/food-cloud-sync";
 import type {
   DayLog,
   DayTarget,
@@ -29,11 +30,45 @@ export const dayLogRepo = {
 };
 
 export const foodRepo = {
-  list: () => getAll("foods"),
+  list: async () => {
+    const localFoods = await getAll("foods");
+    const remoteFoods = await pullFoodsFromCloud();
+
+    if (remoteFoods === null) {
+      return localFoods;
+    }
+
+    if (remoteFoods.length === 0 && localFoods.length > 0) {
+      void pushFoodsToCloud(localFoods);
+      return localFoods;
+    }
+
+    const mergedFoods = mergeFoodsByUpdatedAt(localFoods, remoteFoods);
+    await putMany("foods", mergedFoods);
+
+    const mergedIds = new Set(mergedFoods.map((item) => item.id));
+    const staleLocalIds = localFoods.filter((item) => !mergedIds.has(item.id)).map((item) => item.id);
+    await Promise.all(staleLocalIds.map((id) => deleteById("foods", id)));
+
+    void pushFoodsToCloud(mergedFoods);
+    return mergedFoods;
+  },
   getById: (id: string) => getById("foods", id),
-  upsert: (food: Food) => putOne("foods", food),
-  upsertMany: (foods: Food[]) => putMany("foods", foods),
-  remove: (id: string) => deleteById("foods", id),
+  upsert: async (food: Food) => {
+    await putOne("foods", food);
+    const allFoods = await getAll("foods");
+    void pushFoodsToCloud(allFoods);
+  },
+  upsertMany: async (foods: Food[]) => {
+    await putMany("foods", foods);
+    const allFoods = await getAll("foods");
+    void pushFoodsToCloud(allFoods);
+  },
+  remove: async (id: string) => {
+    await deleteById("foods", id);
+    const allFoods = await getAll("foods");
+    void pushFoodsToCloud(allFoods);
+  },
 };
 
 export const recipeRepo = {

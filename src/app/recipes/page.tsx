@@ -2,6 +2,7 @@
 
 import { calculateRecipePer100g, calculateRecipePortionNutrients, foodRepo, recipeIngredientRepo, recipeRepo } from "@/lib/data";
 import { isAdminUnlocked } from "@/lib/admin/local-admin";
+import { FoodThumbnail } from "@/components/food-thumbnail";
 import type { Food, Recipe, RecipeIngredient } from "@/lib/data";
 import { useEffect, useMemo, useState } from "react";
 
@@ -44,10 +45,6 @@ function toNumber(value: string): number {
 
 function format(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
-}
-
-function recipeImageUrl(name: string): string {
-  return `https://source.unsplash.com/featured/?meal,${encodeURIComponent(name)}`;
 }
 
 export default function RecipesPage() {
@@ -361,15 +358,7 @@ export default function RecipesPage() {
               <article key={recipe.id} className="app-card p-3">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <img
-                      src={recipeImageUrl(recipe.name)}
-                      alt={recipe.name}
-                      className="food-thumb"
-                      loading="lazy"
-                      onError={(event) => {
-                        event.currentTarget.src = "https://source.unsplash.com/featured/?dish,food";
-                      }}
-                    />
+                    <FoodThumbnail name={recipe.name} />
                     <div>
                     <h2 className="text-sm font-semibold">{recipe.name}</h2>
                     <p className="text-xs text-[#8da1bb]">

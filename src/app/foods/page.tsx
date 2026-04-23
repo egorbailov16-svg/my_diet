@@ -2,6 +2,7 @@
 
 import { foodRepo, searchExternalFoods } from "@/lib/data";
 import { isAdminUnlocked } from "@/lib/admin/local-admin";
+import { FoodThumbnail } from "@/components/food-thumbnail";
 import type { ExternalFoodSearchResult, Food, FoodSource } from "@/lib/data";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -55,8 +56,17 @@ function sourceLabel(source: FoodSource): string {
   return "external";
 }
 
-function foodImageUrl(name: string): string {
-  return `https://source.unsplash.com/featured/?food,${encodeURIComponent(name)}`;
+function getExternalImageUrl(food: Food): string | undefined {
+  const rawSource = food.externalMeta?.rawSource;
+  if (!rawSource || typeof rawSource !== "object") return undefined;
+  const source = rawSource as Record<string, unknown>;
+  const direct =
+    source.image_front_small_url ??
+    source.image_front_url ??
+    source.image_url ??
+    source.image_small_url ??
+    source.image_thumb_url;
+  return typeof direct === "string" && direct.trim().length > 0 ? direct : undefined;
 }
 
 export default function FoodsPage() {
@@ -80,6 +90,12 @@ export default function FoodsPage() {
       .catch((error: unknown) => console.error("Failed to load foods", error))
       .finally(() => setIsLoading(false));
     setAdminUnlocked(isAdminUnlocked());
+
+    const intervalId = window.setInterval(() => {
+      loadFoods().catch((error: unknown) => console.error("Background foods sync failed", error));
+    }, 12000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   async function loadFoods() {
@@ -391,15 +407,7 @@ export default function FoodsPage() {
             <article key={food.id} className="app-card p-3">
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <img
-                    src={foodImageUrl(food.name)}
-                    alt={food.name}
-                    className="food-thumb"
-                    loading="lazy"
-                    onError={(event) => {
-                      event.currentTarget.src = "https://source.unsplash.com/featured/?healthy-food";
-                    }}
-                  />
+                  <FoodThumbnail name={food.name} preferredUrl={getExternalImageUrl(food)} />
                   <div>
                   <h2 className="text-sm font-semibold">{food.name}</h2>
                   <span
