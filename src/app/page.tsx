@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  DAILY_MICRO_NORMS,
   calculateFoodNutrientsForWeight,
   calculateDayTotals,
   calculateRecipeNutrientDetails,
@@ -11,6 +12,7 @@ import {
   foodRepo,
   mealEntryRepo,
   type DayStatus,
+  normalizeNutrientNormKey,
   resolveFoodNutrientDetails,
   recipeIngredientRepo,
   recipeRepo,
@@ -50,6 +52,24 @@ function parseWeight(value: string): number {
 
 function hasAnyNutrients(map?: Record<string, number>): boolean {
   return !!map && Object.keys(map).length > 0;
+}
+
+function scaleMap(per100g: Record<string, number> | undefined, amountG: number): Record<string, number> {
+  if (!per100g) return {};
+  const factor = amountG / 100;
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(per100g)) {
+    out[key] = Math.round(value * factor * 100) / 100;
+  }
+  return out;
+}
+
+function addMaps(a: Record<string, number>, b: Record<string, number>): Record<string, number> {
+  const out = { ...a };
+  for (const [key, value] of Object.entries(b)) {
+    out[key] = Math.round(((out[key] ?? 0) + value) * 100) / 100;
+  }
+  return out;
 }
 
 type EntryWithNutrients = {
@@ -179,6 +199,38 @@ export default function Home() {
 
     return calculateRemainingToDayTarget(dayTotals.consumed, currentTarget);
   }, [dayTotals, currentTarget]);
+
+  const dayMicronutrients = useMemo(() => {
+    let microTotals: Record<string, number> = {};
+    let vitaminTotals: Record<string, number> = {};
+    for (const entry of entries) {
+      if (entry.sourceType === "food") {
+        const food = foodsById.get(entry.sourceId);
+        if (!food) continue;
+        const details = resolveFoodNutrientDetails(food);
+        microTotals = addMaps(microTotals, scaleMap(details.micronutrientsPer100g, entry.amountG));
+        vitaminTotals = addMaps(vitaminTotals, scaleMap(details.vitaminsPer100g, entry.amountG));
+        continue;
+      }
+      const recipe = recipesById.get(entry.sourceId);
+      if (!recipe) continue;
+      const recipeIngredients = ingredientsByRecipeId.get(recipe.id) ?? [];
+      const details = calculateRecipeNutrientDetails(recipe, recipeIngredients, foodsById);
+      microTotals = addMaps(microTotals, scaleMap(details.micronutrientsPer100g, entry.amountG));
+      vitaminTotals = addMaps(vitaminTotals, scaleMap(details.vitaminsPer100g, entry.amountG));
+    }
+
+    const merged = addMaps(microTotals, vitaminTotals);
+    return Object.entries(merged)
+      .map(([label, consumed]) => {
+        const normalized = normalizeNutrientNormKey(label);
+        const target = DAILY_MICRO_NORMS[normalized];
+        const ratio = target && target > 0 ? consumed / target : 0;
+        return { label, consumed, target, ratio };
+      })
+      .filter((item) => item.consumed > 0)
+      .sort((a, b) => b.ratio - a.ratio);
+  }, [entries, foodsById, recipesById, ingredientsByRecipeId]);
 
   const entriesWithNutrients = useMemo<EntryWithNutrients[]>(() => {
     return entries.map((entry) => {
@@ -403,6 +455,11 @@ export default function Home() {
       </div>
 
       <div className="app-card p-4">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Микро и витамины за день</p>
+        <MicroNormChart items={dayMicronutrients} />
+      </div>
+
+      <div className="app-card p-4">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Прогресс по цели</p>
         {currentTarget && dayTotals ? (
           <div className="mt-3 space-y-2">
@@ -614,6 +671,45 @@ export default function Home() {
         Быстро добавить еду
       </Link>
     </section>
+  );
+}
+
+function MicroNormChart({
+  items,
+}: {
+  items: Array<{ label: string; consumed: number; target?: number; ratio: number }>;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-[#9db0c8]">Нет данных о микронутриентах за день.</p>;
+  }
+
+  const visible = items.slice(0, 10);
+  return (
+    <div className="space-y-2">
+      {visible.map((item) => {
+        const pct = item.target ? Math.max(0, Math.min(1, item.ratio)) : 0;
+        return (
+          <div key={item.label} className="app-subcard p-2">
+            <div className="mb-1 flex items-center justify-between text-xs text-[#b8c7da]">
+              <span className="capitalize">{item.label}</span>
+              <span>
+                {formatNumber(item.consumed)}
+                {item.target ? ` / ${formatNumber(item.target)}` : " (нет нормы)"}
+              </span>
+            </div>
+            <div className="progress-track">
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${pct * 100}%`,
+                  background: pct >= 1 ? "linear-gradient(90deg,#84e14b,#9cf067)" : "linear-gradient(90deg,#3e82ff,#5ca1ff)",
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

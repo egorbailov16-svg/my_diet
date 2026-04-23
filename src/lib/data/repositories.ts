@@ -1,5 +1,5 @@
 import { deleteById, getAll, getById, putMany, putOne } from "@/lib/data/db";
-import { ensureFreshSync, scheduleCloudPush } from "@/lib/data/cloud-sync";
+import { ensureFreshSync, markDeletedInSync, scheduleCloudPush } from "@/lib/data/cloud-sync";
 import type {
   DayLog,
   DayTarget,
@@ -60,6 +60,7 @@ export const foodRepo = {
   },
   remove: async (id: string) => {
     await deleteById("foods", id);
+    markDeletedInSync("foods", id);
     scheduleCloudPush();
   },
 };
@@ -77,6 +78,7 @@ export const recipeRepo = {
   },
   remove: async (id: string) => {
     await deleteById("recipes", id);
+    markDeletedInSync("recipes", id);
     scheduleCloudPush();
   },
 };
@@ -94,7 +96,11 @@ export const recipeIngredientRepo = {
   removeByRecipeId: async (recipeId: string) => {
     const items = await getAll("recipeIngredients");
     const toDelete = items.filter((ingredient) => ingredient.recipeId === recipeId);
-    await Promise.all(toDelete.map((ingredient) => deleteById("recipeIngredients", ingredient.id)));
+    await Promise.all(
+      toDelete.map((ingredient) =>
+        deleteById("recipeIngredients", ingredient.id).then(() => markDeletedInSync("recipeIngredients", ingredient.id)),
+      ),
+    );
     scheduleCloudPush();
   },
 };
@@ -111,6 +117,7 @@ export const mealEntryRepo = {
   },
   remove: async (id: string) => {
     await deleteById("mealEntries", id);
+    markDeletedInSync("mealEntries", id);
     scheduleCloudPush();
   },
 };
@@ -127,6 +134,7 @@ export const weightLogRepo = {
   },
   remove: async (id: string) => {
     await deleteById("weightLogs", id);
+    markDeletedInSync("weightLogs", id);
     scheduleCloudPush();
   },
 };

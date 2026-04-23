@@ -504,7 +504,7 @@ function BarChart({ points }: { points: { label: string; value: number }[] }) {
             <div
               className="w-full rounded-t bg-[#8ff65b]"
               style={{ height: `${Math.max(8, (point.value / max) * 100)}%` }}
-              title={`${point.label}: ${formatNumber(point.value)} кг`}
+              title={`${point.label}: ${formatNumber(point.value)} ккал`}
             />
             <p className="text-[10px] text-[#8da1bb]">{point.label}</p>
           </div>

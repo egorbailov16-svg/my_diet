@@ -13,6 +13,7 @@ const EMPTY_DOC = {
   dayTargets: [],
   weightLogs: [],
   profile: null,
+  deleted: {},
 };
 
 export const runtime = "edge";
