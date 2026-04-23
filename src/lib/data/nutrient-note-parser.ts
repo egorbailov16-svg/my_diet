@@ -12,7 +12,11 @@ function normalizeNutrientName(raw: string): string {
 }
 
 function normalizeValue(raw: string): number | null {
-  const parsed = Number(raw.replace(",", "."));
+  const cleaned = raw
+    .replace(/[−–—]/g, "-")
+    .replace(/^[^\d+\-]*/u, "")
+    .replace(",", ".");
+  const parsed = Number(cleaned);
   if (!Number.isFinite(parsed)) return null;
   return Math.round(parsed * 100) / 100;
 }
@@ -27,7 +31,7 @@ function mergeMap(target: NutrientMap, source: NutrientMap): NutrientMap {
 
 function parsePairs(text: string): NutrientMap {
   const map: NutrientMap = {};
-  const pairRegex = /([a-zA-Zа-яА-ЯёЁ0-9+\- ]{2,}?)\s*[:=]\s*([-+]?\d+(?:[.,]\d+)?)/g;
+  const pairRegex = /([a-zA-Zа-яА-ЯёЁ0-9+\- ]{2,}?)\s*[:=]\s*([~≈<>≤≥]?\s*[-+]?\d+(?:[.,]\d+)?)/g;
   let match: RegExpExecArray | null = pairRegex.exec(text);
   while (match) {
     const name = normalizeNutrientName(match[1] ?? "");
