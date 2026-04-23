@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type EntryType = "food" | "recipe";
 type VoiceState = "idle" | "listening" | "processing" | "parsed" | "error" | "unavailable";
+type AmountUnit = "g" | "tsp" | "tbsp";
 
 function nowISO(): string {
   return new Date().toISOString();
@@ -47,6 +48,61 @@ function formatNumber(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+function detectTeaspoonGramsForFoodName(foodName: string): number {
+  const name = foodName.toLowerCase();
+  const rules: Array<{ includes: string[]; tspG: number }> = [
+    { includes: ["горчиц"], tspG: 5 },
+    { includes: ["майонез"], tspG: 5 },
+    { includes: ["кетчуп"], tspG: 5 },
+    { includes: ["соус"], tspG: 5 },
+    { includes: ["мед", "мёд"], tspG: 7 },
+    { includes: ["сахар"], tspG: 5 },
+    { includes: ["соль"], tspG: 6 },
+    { includes: ["масло", "оливков", "подсолнеч"], tspG: 4.5 },
+    { includes: ["сметан"], tspG: 7 },
+    { includes: ["йогурт"], tspG: 6 },
+    { includes: ["творог"], tspG: 7 },
+    { includes: ["арахисов", "паста"], tspG: 6 },
+    { includes: ["мука"], tspG: 3 },
+    { includes: ["какао"], tspG: 3 },
+    { includes: ["рис", "греч", "овсян"], tspG: 3.5 },
+    { includes: ["вода", "молок", "кефир"], tspG: 5 },
+  ];
+  for (const rule of rules) {
+    if (rule.includes.some((part) => name.includes(part))) {
+      return rule.tspG;
+    }
+  }
+  return 5;
+}
+
+function convertAmountToGrams(params: {
+  rawAmount: string;
+  unit: AmountUnit;
+  entryType: EntryType;
+  selectedId: string;
+  foodsById: Map<string, Food>;
+}): number {
+  const numericAmount = parseWeight(params.rawAmount);
+  if (numericAmount <= 0) return 0;
+  if (params.unit === "g") return numericAmount;
+
+  const tbspFactor = 3;
+  const gramsPerTeaspoon =
+    params.entryType === "food"
+      ? detectTeaspoonGramsForFoodName(params.foodsById.get(params.selectedId)?.name ?? "")
+      : 5;
+
+  const grams = params.unit === "tsp" ? numericAmount * gramsPerTeaspoon : numericAmount * gramsPerTeaspoon * tbspFactor;
+  return Math.round(grams * 100) / 100;
+}
+
+function amountUnitLabel(unit: AmountUnit): string {
+  if (unit === "tsp") return "ч.л.";
+  if (unit === "tbsp") return "ст.л.";
+  return "г";
+}
+
 export default function AddEntryPage() {
   const router = useRouter();
   const speechProvider = useMemo(() => createSpeechProvider(), []);
@@ -54,7 +110,8 @@ export default function AddEntryPage() {
   const [query, setQuery] = useState("");
   const [entryType, setEntryType] = useState<EntryType>("food");
   const [selectedId, setSelectedId] = useState<string>("");
-  const [weightInput, setWeightInput] = useState("150");
+  const [amountInput, setAmountInput] = useState("150");
+  const [amountUnit, setAmountUnit] = useState<AmountUnit>("g");
 
   const [foods, setFoods] = useState<Food[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -149,7 +206,13 @@ export default function AddEntryPage() {
   }, [selectedId, entryType, foodsById, recipesById]);
 
   const preview = useMemo(() => {
-    const weightG = parseWeight(weightInput);
+    const weightG = convertAmountToGrams({
+      rawAmount: amountInput,
+      unit: amountUnit,
+      entryType,
+      selectedId,
+      foodsById,
+    });
     if (!selectedId || weightG <= 0) {
       return { kcal: 0, protein: 0, fat: 0, carbs: 0 };
     }
@@ -164,7 +227,7 @@ export default function AddEntryPage() {
     if (!recipe) return { kcal: 0, protein: 0, fat: 0, carbs: 0 };
     const ingredients = ingredientsByRecipeId.get(recipe.id) ?? [];
     return calculateRecipePortionNutrients(recipe, ingredients, foodsById, weightG);
-  }, [selectedId, weightInput, entryType, foodsById, recipesById, ingredientsByRecipeId]);
+  }, [selectedId, amountInput, amountUnit, entryType, foodsById, recipesById, ingredientsByRecipeId]);
 
   const recentQuick = useMemo(() => {
     return recentItems
@@ -455,7 +518,13 @@ export default function AddEntryPage() {
   }
 
   async function saveEntry() {
-    const weightG = parseWeight(weightInput);
+    const weightG = convertAmountToGrams({
+      rawAmount: amountInput,
+      unit: amountUnit,
+      entryType,
+      selectedId,
+      foodsById,
+    });
     if (!selectedId || weightG <= 0) return;
 
     const date = todayISODate();
@@ -655,6 +724,7 @@ export default function AddEntryPage() {
           onClick={() => {
             setEntryType("food");
             setSelectedId("");
+            setAmountUnit("g");
           }}
           className={`h-12 rounded-lg text-sm font-semibold ${
             entryType === "food" ? "accent-btn" : "secondary-btn"
@@ -667,6 +737,7 @@ export default function AddEntryPage() {
           onClick={() => {
             setEntryType("recipe");
             setSelectedId("");
+            setAmountUnit("g");
           }}
           className={`h-12 rounded-lg text-sm font-semibold ${
             entryType === "recipe" ? "accent-btn" : "secondary-btn"
@@ -683,7 +754,10 @@ export default function AddEntryPage() {
         selectedId={selectedId}
         onSelect={(id, amount) => {
           setSelectedId(id);
-          if (amount) setWeightInput(String(amount));
+          if (amount) {
+            setAmountInput(String(amount));
+            setAmountUnit("g");
+          }
         }}
       />
 
@@ -694,7 +768,10 @@ export default function AddEntryPage() {
         selectedId={selectedId}
         onSelect={(id, amount) => {
           setSelectedId(id);
-          if (amount) setWeightInput(String(amount));
+          if (amount) {
+            setAmountInput(String(amount));
+            setAmountUnit("g");
+          }
         }}
       />
 
@@ -735,22 +812,57 @@ export default function AddEntryPage() {
 
       <div className="app-card p-3">
         <label htmlFor="entry-weight" className="mb-2 block text-xs font-medium uppercase tracking-wide text-[#9db0c8]">
-          Вес, г
+          Количество
         </label>
-        <input
-          id="entry-weight"
-          type="text"
-          inputMode="decimal"
-          value={weightInput}
-          onChange={(event) => setWeightInput(event.target.value)}
-          className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
-        />
+        <div className="grid grid-cols-[1fr_110px] gap-2">
+          <input
+            id="entry-weight"
+            type="text"
+            inputMode="decimal"
+            value={amountInput}
+            onChange={(event) => setAmountInput(event.target.value)}
+            className="h-12 w-full rounded-2xl  px-3 text-base outline-none"
+          />
+          <select
+            value={amountUnit}
+            onChange={(event) => setAmountUnit(event.target.value as AmountUnit)}
+            className="h-12 w-full rounded-2xl px-3 text-sm outline-none"
+          >
+            <option value="g">г</option>
+            <option value="tsp">ч.л.</option>
+            <option value="tbsp">ст.л.</option>
+          </select>
+        </div>
+        <p className="mt-2 text-xs text-[#8da1bb]">
+          Будет сохранено:{" "}
+          {formatNumber(
+            convertAmountToGrams({
+              rawAmount: amountInput,
+              unit: amountUnit,
+              entryType,
+              selectedId,
+              foodsById,
+            }),
+          )}{" "}
+          г
+          {amountUnit !== "g" ? ` (${amountUnitLabel(amountUnit)})` : ""}
+        </p>
       </div>
 
       <div className="app-card p-3">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">КБЖУ записи</p>
         <p className="text-sm text-[#e8f0fc]">
-          {selectedTitle || "Не выбрано"} · {formatNumber(parseWeight(weightInput))} г
+          {selectedTitle || "Не выбрано"} ·{" "}
+          {formatNumber(
+            convertAmountToGrams({
+              rawAmount: amountInput,
+              unit: amountUnit,
+              entryType,
+              selectedId,
+              foodsById,
+            }),
+          )}{" "}
+          г
         </p>
         <p className="mt-1 text-sm text-[#b8c7da]">
           {formatNumber(preview.kcal)} ккал · Б {formatNumber(preview.protein)} · Ж {formatNumber(preview.fat)} · У {formatNumber(preview.carbs)}
@@ -760,7 +872,16 @@ export default function AddEntryPage() {
       <button
         type="button"
         onClick={saveEntry}
-        disabled={!selectedId || parseWeight(weightInput) <= 0}
+        disabled={
+          !selectedId ||
+          convertAmountToGrams({
+            rawAmount: amountInput,
+            unit: amountUnit,
+            entryType,
+            selectedId,
+            foodsById,
+          }) <= 0
+        }
         className="flex h-12 w-full items-center justify-center rounded-2xl accent-btn text-sm font-semibold disabled:opacity-40"
       >
         Сохранить в текущий день
