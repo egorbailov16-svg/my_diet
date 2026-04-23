@@ -308,34 +308,34 @@ export default function Home() {
   }
 
   if (isLoading || !todayLog) {
-    return <section className="py-4 text-sm text-neutral-500">Загрузка...</section>;
+    return <section className="py-4 text-sm text-[#9db0c8]">Загрузка...</section>;
   }
 
   return (
-    <section className="space-y-4 pb-2">
+    <section className="space-y-4 pb-2 text-neutral-100">
       <header className="space-y-1">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-500">Сегодня</p>
+            <p className="text-xs uppercase tracking-wide text-[#9db0c8]">Сегодня</p>
             <h1 className="text-xl font-semibold capitalize">{todayLabel}</h1>
           </div>
           <Link
             href="/settings"
-            className="flex h-10 items-center justify-center rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800"
+            className="flex h-10 items-center justify-center rounded-lg bg-[#0d1520] px-3 text-xs font-semibold text-[#c7d4e5]"
           >
             Настройки
           </Link>
         </div>
       </header>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Тип дня</p>
+      <div className="app-card p-3">
+        <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Тип дня</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => updateDayType("normal")}
             className={`h-12 rounded-lg text-sm font-semibold ${
-              todayLog.dayType === "normal" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+              todayLog.dayType === "normal" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
             }`}
           >
             Обычный
@@ -344,7 +344,7 @@ export default function Home() {
             type="button"
             onClick={() => updateDayType("strength")}
             className={`h-12 rounded-lg text-sm font-semibold ${
-              todayLog.dayType === "strength" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+              todayLog.dayType === "strength" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
             }`}
           >
             Силовой
@@ -352,8 +352,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Итоги за день</p>
+      <div className="app-card p-3">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Итоги за день</p>
         <div className="grid grid-cols-2 gap-3">
           <Stat label="Калории" value={dayTotals?.consumed.kcal ?? 0} unit="ккал" />
           <Stat label="Белки" value={dayTotals?.consumed.protein ?? 0} unit="г" />
@@ -363,8 +363,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Прогресс по цели</p>
+      <div className="app-card p-3">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Прогресс по цели</p>
         {currentTarget && dayTotals ? (
           <div className="mt-3 space-y-2">
             <ProgressRow
@@ -388,11 +388,11 @@ export default function Home() {
             />
           </div>
         ) : null}
-        {!currentTarget ? <p className="text-sm text-neutral-500">Цели дня не найдены.</p> : null}
+        {!currentTarget ? <p className="text-sm text-[#9db0c8]">Цели дня не найдены.</p> : null}
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Осталось до цели</p>
+      <div className="app-card p-3">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Осталось до цели</p>
         {remaining ? (
           <div className="space-y-2 text-sm">
             <Row label="Калории" value={`${formatNumber(remaining.kcalMin)}..${formatNumber(remaining.kcalMax)} ккал`} />
@@ -401,23 +401,23 @@ export default function Home() {
             <Row label="Углеводы" value={`${formatNumber(remaining.carbsMin)}..${formatNumber(remaining.carbsMax)} г`} />
           </div>
         ) : (
-          <p className="text-sm text-neutral-500">Цели дня не найдены.</p>
+          <p className="text-sm text-[#9db0c8]">Цели дня не найдены.</p>
         )}
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">Записи за день</p>
+      <div className="app-card p-3">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Записи за день</p>
         {entriesWithNutrients.length === 0 ? (
-          <p className="text-sm text-neutral-500">Пока нет записей. Добавь первый прием пищи.</p>
+          <p className="text-sm text-[#9db0c8]">Пока нет записей. Добавь первый прием пищи.</p>
         ) : (
           <ul className="space-y-2">
             {entriesWithNutrients.map(({ entry, title, nutrients }) => (
-              <li key={entry.id} className="rounded-lg bg-neutral-50 p-3">
+              <li key={entry.id} className="rounded-lg bg-[#0b1320] p-3">
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <p className="text-sm font-medium">{title}</p>
-                  <p className="text-xs text-neutral-500">{entry.amountG} г</p>
+                  <p className="text-xs text-[#8da1bb]">{entry.amountG} г</p>
                 </div>
-                <p className="text-xs text-neutral-600">
+                <p className="text-xs text-[#b8c7da]">
                   {formatNumber(nutrients.kcal)} ккал · Б {formatNumber(nutrients.protein)} · Ж {formatNumber(nutrients.fat)} · У{" "}
                   {formatNumber(nutrients.carbs)}
                 </p>
@@ -425,21 +425,21 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => startEditingEntry(entry)}
-                    className="h-10 rounded-lg bg-neutral-200 px-3 text-xs font-semibold text-neutral-800"
+                    className="h-10 rounded-lg bg-[#172437] px-3 text-xs font-semibold text-[#d8e4f4]"
                   >
                     Изм.
                   </button>
                   <button
                     type="button"
                     onClick={() => deleteEntry(entry)}
-                    className="h-10 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700"
+                    className="h-10 rounded-lg bg-[#2f1220] px-3 text-xs font-semibold text-[#ff7ca4]"
                   >
                     Удал.
                   </button>
                 </div>
 
                 {editingEntryId === entry.id ? (
-                  <div className="mt-3 space-y-2 rounded-lg border border-neutral-200 bg-white p-3">
+                  <div className="mt-3 space-y-2 rounded-lg border border-[#233247] bg-[#0a111b] p-3">
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -448,7 +448,7 @@ export default function Home() {
                           setEditingSourceId("");
                         }}
                         className={`h-10 rounded-lg text-xs font-semibold ${
-                          editingSourceType === "food" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+                          editingSourceType === "food" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
                         }`}
                       >
                         Продукт
@@ -460,7 +460,7 @@ export default function Home() {
                           setEditingSourceId("");
                         }}
                         className={`h-10 rounded-lg text-xs font-semibold ${
-                          editingSourceType === "recipe" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+                          editingSourceType === "recipe" ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"
                         }`}
                       >
                         Блюдо
@@ -494,14 +494,14 @@ export default function Home() {
                         type="button"
                         onClick={() => saveEntryEdit(entry)}
                         disabled={!editingSourceId || parseWeight(editingWeightInput) <= 0}
-                        className="h-10 rounded-lg bg-neutral-900 text-xs font-semibold text-white disabled:opacity-40"
+                        className="h-10 rounded-lg accent-btn text-xs font-semibold disabled:opacity-40"
                       >
                         Сохранить
                       </button>
                       <button
                         type="button"
                         onClick={cancelEditingEntry}
-                        className="h-10 rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-800"
+                        className="h-10 rounded-lg bg-[#0d1520] text-xs font-semibold text-[#c7d4e5]"
                       >
                         Отмена
                       </button>
@@ -514,8 +514,8 @@ export default function Home() {
         )}
       </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <label htmlFor="active-kcal" className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+      <div className="app-card p-3">
+        <label htmlFor="active-kcal" className="mb-2 block text-xs font-medium uppercase tracking-wide text-[#9db0c8]">
           Активные ккал (ручной ввод)
         </label>
         <input
@@ -528,37 +528,37 @@ export default function Home() {
         />
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Завершение дня</p>
-        <p className="mb-3 text-sm text-neutral-600">Статус: {todayLog.status === "completed" ? "завершен" : "активный"}</p>
+      <div className="app-card p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Завершение дня</p>
+        <p className="mb-3 text-sm text-[#b8c7da]">Статус: {todayLog.status === "completed" ? "завершен" : "активный"}</p>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={finishDay} className="h-11 rounded-lg bg-neutral-900 text-sm font-semibold text-white">
+          <button type="button" onClick={finishDay} className="h-11 rounded-lg accent-btn text-sm font-semibold">
             Закончить день
           </button>
-          <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
+          <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-[#0d1520] text-sm font-semibold text-[#c7d4e5]">
             Открыть снова
           </button>
         </div>
       </div>
 
       {todayLog.dayAnalysis ? (
-        <div className="rounded-xl border border-neutral-200 p-3">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Итог дня</p>
-          <p className="text-sm text-neutral-800">{todayLog.dayAnalysis.summary}</p>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Что хорошо</p>
-          <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+        <div className="app-card p-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Итог дня</p>
+          <p className="text-sm text-[#e8f0fc]">{todayLog.dayAnalysis.summary}</p>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Что хорошо</p>
+          <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
             {todayLog.dayAnalysis.good.map((item) => (
               <li key={item}>- {item}</li>
             ))}
           </ul>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Что плохо</p>
-          <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Что плохо</p>
+          <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
             {todayLog.dayAnalysis.issues.map((item) => (
               <li key={item}>- {item}</li>
             ))}
           </ul>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Что исправить завтра</p>
-          <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Что исправить завтра</p>
+          <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
             {todayLog.dayAnalysis.nextDayActions.map((item) => (
               <li key={item}>- {item}</li>
             ))}
@@ -568,7 +568,7 @@ export default function Home() {
 
       <Link
         href="/add-entry"
-        className="flex h-12 w-full items-center justify-center rounded-lg bg-neutral-900 text-sm font-semibold text-white"
+        className="flex h-12 w-full items-center justify-center rounded-lg accent-btn text-sm font-semibold"
       >
         Быстро добавить еду
       </Link>
@@ -578,8 +578,8 @@ export default function Home() {
 
 function Stat({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
-    <div className="rounded-lg bg-neutral-50 p-3">
-      <p className="text-xs text-neutral-500">{label}</p>
+    <div className="rounded-lg bg-[#0b1320] p-3">
+      <p className="text-xs text-[#8da1bb]">{label}</p>
       <p className="mt-1 text-lg font-semibold">
         {formatNumber(value)} {unit}
       </p>
@@ -590,7 +590,7 @@ function Stat({ label, value, unit }: { label: string; value: number; unit: stri
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <p className="text-neutral-600">{label}</p>
+      <p className="text-[#b8c7da]">{label}</p>
       <p className="font-semibold">{value}</p>
     </div>
   );
@@ -602,14 +602,14 @@ function ProgressRow({ label, value, target, unit }: { label: string; value: num
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs text-neutral-600">
+      <div className="flex items-center justify-between text-xs text-[#b8c7da]">
         <span>{label}</span>
         <span>
           {formatNumber(value)} / {formatNumber(target)} {unit}
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded bg-neutral-200">
-        <div className="h-full rounded bg-neutral-900" style={{ width: `${ratio * 100}%` }} />
+      <div className="h-2 w-full overflow-hidden rounded bg-[#223149]">
+        <div className="h-full rounded bg-[#8ff65b]" style={{ width: `${ratio * 100}%` }} />
       </div>
     </div>
   );

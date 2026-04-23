@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#05070b",
 };
 
 export default function RootLayout({
@@ -39,9 +39,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-neutral-50 text-neutral-900">
+      <body className="min-h-full bg-[#05070b] text-neutral-100">
         <SeedBootstrap />
-        <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
+        <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-[#05070b]">
           <main className="flex-1 px-4 pb-28 pt-3">{children}</main>
           <MobileBottomNav />
         </div>

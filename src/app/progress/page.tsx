@@ -296,9 +296,9 @@ export default function ProgressPage() {
   }
 
   return (
-    <section className="space-y-4 pb-2">
+    <section className="space-y-4 pb-2 text-neutral-100">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Отчет</p>
+        <p className="text-xs uppercase tracking-wide text-[#9db0c8]">Отчет</p>
         <h1 className="text-xl font-semibold">Отчет</h1>
       </header>
 
@@ -308,7 +308,7 @@ export default function ProgressPage() {
             key={value}
             type="button"
             onClick={() => setRangeDays(value as PeriodRangeDays)}
-            className={`h-11 rounded-lg text-sm font-semibold ${rangeDays === value ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"}`}
+            className={`h-11 rounded-lg text-sm font-semibold ${rangeDays === value ? "accent-btn" : "bg-[#0d1520] text-[#c7d4e5]"}`}
           >
             {value} дней
           </button>
@@ -329,49 +329,49 @@ export default function ProgressPage() {
         <KpiCard label="Попадание в план" value={`${formatNumber(planHitRate)}%`} />
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Вес по дням</p>
+      <div className="app-card p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Вес по дням</p>
         <LineChart points={periodWeightPoints} />
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Калории по дням</p>
+      <div className="app-card p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Калории по дням</p>
         <BarChart points={periodKcalPoints} />
       </div>
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Б/Ж/У по дням</p>
+      <div className="app-card p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Б/Ж/У по дням</p>
         <MacroTrendChart points={periodMacroPoints} />
       </div>
 
       {analysisCache ? (
-        <div className="rounded-xl border border-neutral-200 p-3">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">AI-анализ периода</p>
-          <p className="text-sm text-neutral-800">{analysisCache.summary}</p>
+        <div className="app-card p-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">AI-анализ периода</p>
+          <p className="text-sm text-[#e8f0fc]">{analysisCache.summary}</p>
           <SectionList title="Общий вывод" items={analysisCache.good} />
           <SectionList title="Основные проблемы" items={analysisCache.issues} />
           <SectionList title="Анализ веса и прогресса" items={analysisCache.weightAndProgress} />
           <SectionList title="Анализ питания" items={analysisCache.nutrition} />
           <SectionList title="Анализ активности" items={analysisCache.activity} />
           <div className="mt-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Анализ микронутриентов</p>
-            <p className="mt-1 text-sm text-neutral-700">{analysisCache.micronutrients.text}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Анализ микронутриентов</p>
+            <p className="mt-1 text-sm text-[#b8c7da]">{analysisCache.micronutrients.text}</p>
           </div>
           <SectionList title="Что улучшить" items={analysisCache.improve} />
           <SectionList title="Что сократить / убрать" items={analysisCache.reduce} />
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-neutral-200 p-3">
-        <p className="text-xs text-neutral-500">
+      <div className="app-card p-3">
+        <p className="text-xs text-[#9db0c8]">
           Микронутриенты: {microCoverage >= 50 ? "данные частично доступны, вывод предварительный" : "Недостаточно данных для точного анализа микронутриентов"}
         </p>
       </div>
 
-      <form onSubmit={saveWeight} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{editingId ? "Редактировать вес" : "Добавить вес"}</p>
+      <form onSubmit={saveWeight} className="app-card space-y-3 p-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">{editingId ? "Редактировать вес" : "Добавить вес"}</p>
         <label className="space-y-1">
-          <span className="text-xs text-neutral-500">Дата</span>
+          <span className="text-xs text-[#9db0c8]">Дата</span>
           <input
             type="date"
             value={dateInput}
@@ -382,7 +382,7 @@ export default function ProgressPage() {
         </label>
 
         <label className="space-y-1">
-          <span className="text-xs text-neutral-500">Вес, кг</span>
+          <span className="text-xs text-[#9db0c8]">Вес, кг</span>
           <input
             type="text"
             inputMode="decimal"
@@ -395,10 +395,10 @@ export default function ProgressPage() {
         </label>
 
         <div className="grid grid-cols-2 gap-2">
-          <button type="submit" className="h-12 rounded-lg bg-neutral-900 text-sm font-semibold text-white">
+          <button type="submit" className="h-12 rounded-lg accent-btn text-sm font-semibold">
             {editingId ? "Сохранить" : "Добавить"}
           </button>
-          <button type="button" onClick={resetForm} className="h-12 rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-800">
+          <button type="button" onClick={resetForm} className="h-12 rounded-lg bg-[#0d1520] text-sm font-semibold text-[#c7d4e5]">
             Очистить
           </button>
         </div>
@@ -406,12 +406,12 @@ export default function ProgressPage() {
 
       <div className="space-y-2">
         {isLoading ? (
-          <p className="text-sm text-neutral-500">Загрузка...</p>
+          <p className="text-sm text-[#9db0c8]">Загрузка...</p>
         ) : weightLogs.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-500">Записей веса пока нет.</p>
+          <p className="rounded-xl border border-dashed border-[#2a3a52] p-4 text-sm text-[#9db0c8]">Записей веса пока нет.</p>
         ) : (
           weightLogs.map((entry) => (
-            <article key={entry.id} className="rounded-xl border border-neutral-200 p-3">
+            <article key={entry.id} className="app-card p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-semibold">{entry.date}</p>
                 <p className="text-sm">{formatNumber(entry.weightKg)} кг</p>
@@ -420,14 +420,14 @@ export default function ProgressPage() {
                 <button
                   type="button"
                   onClick={() => startEdit(entry)}
-                  className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-800"
+                  className="h-10 rounded-lg bg-[#0d1520] px-3 text-xs font-semibold text-[#c7d4e5]"
                 >
                   Изм.
                 </button>
                 <button
                   type="button"
                   onClick={() => removeEntry(entry)}
-                  className="h-10 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700"
+                  className="h-10 rounded-lg bg-[#2f1220] px-3 text-xs font-semibold text-[#ff7ca4]"
                 >
                   Удал.
                 </button>
@@ -442,8 +442,8 @@ export default function ProgressPage() {
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-neutral-200 p-3">
-      <p className="text-[11px] uppercase tracking-wide text-neutral-500">{label}</p>
+    <div className="app-card p-3">
+      <p className="text-[11px] uppercase tracking-wide text-[#9db0c8]">{label}</p>
       <p className="mt-1 text-base font-semibold">{value}</p>
     </div>
   );
@@ -451,7 +451,7 @@ function KpiCard({ label, value }: { label: string; value: string }) {
 
 function LineChart({ points }: { points: { date: string; value: number }[] }) {
   if (points.length === 0) {
-    return <p className="text-sm text-neutral-500">Недостаточно данных.</p>;
+    return <p className="text-sm text-[#9db0c8]">Недостаточно данных.</p>;
   }
 
   const width = 320;
@@ -473,12 +473,12 @@ function LineChart({ points }: { points: { date: string; value: number }[] }) {
   return (
     <div className="space-y-2">
       <svg viewBox={`0 0 ${width} ${height}`} className="h-36 w-full">
-        <polyline fill="none" stroke="#171717" strokeWidth="2" points={polylinePoints} />
+        <polyline fill="none" stroke="#8ff65b" strokeWidth="2" points={polylinePoints} />
         {coordinates.map((point, index) => (
-          <circle key={index} cx={point.x} cy={point.y} r="2.5" fill="#171717" />
+          <circle key={index} cx={point.x} cy={point.y} r="2.5" fill="#8ff65b" />
         ))}
       </svg>
-      <div className="flex justify-between text-[11px] text-neutral-500">
+      <div className="flex justify-between text-[11px] text-[#8da1bb]">
         <span>{points[0]?.date}</span>
         <span>{points[points.length - 1]?.date}</span>
       </div>
@@ -488,7 +488,7 @@ function LineChart({ points }: { points: { date: string; value: number }[] }) {
 
 function BarChart({ points }: { points: { label: string; value: number }[] }) {
   if (points.length === 0) {
-    return <p className="text-sm text-neutral-500">Недостаточно данных.</p>;
+    return <p className="text-sm text-[#9db0c8]">Недостаточно данных.</p>;
   }
 
   const max = Math.max(...points.map((point) => point.value)) || 1;
@@ -499,11 +499,11 @@ function BarChart({ points }: { points: { label: string; value: number }[] }) {
         {points.map((point) => (
           <div key={point.label} className="flex flex-1 flex-col items-center gap-1">
             <div
-              className="w-full rounded-t bg-neutral-900"
+              className="w-full rounded-t bg-[#8ff65b]"
               style={{ height: `${Math.max(8, (point.value / max) * 100)}%` }}
               title={`${point.label}: ${formatNumber(point.value)} кг`}
             />
-            <p className="text-[10px] text-neutral-500">{point.label}</p>
+            <p className="text-[10px] text-[#8da1bb]">{point.label}</p>
           </div>
         ))}
       </div>
@@ -517,14 +517,14 @@ function MacroTrendChart({
   points: Array<{ label: string; protein: number; fat: number; carbs: number }>;
 }) {
   if (points.length === 0) {
-    return <p className="text-sm text-neutral-500">Недостаточно данных.</p>;
+    return <p className="text-sm text-[#9db0c8]">Недостаточно данных.</p>;
   }
 
   return (
     <div className="space-y-2">
       {points.map((point) => (
-        <div key={point.label} className="rounded-lg bg-neutral-50 p-2 text-xs">
-          <p className="mb-1 text-neutral-500">{point.label}</p>
+        <div key={point.label} className="rounded-lg bg-[#0b1320] p-2 text-xs">
+          <p className="mb-1 text-[#8da1bb]">{point.label}</p>
           <p>
             Б {formatNumber(point.protein)} · Ж {formatNumber(point.fat)} · У {formatNumber(point.carbs)}
           </p>
@@ -538,8 +538,8 @@ function SectionList({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
   return (
     <div className="mt-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
-      <ul className="mt-1 space-y-1 text-sm text-neutral-700">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">{title}</p>
+      <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
         {items.map((item) => (
           <li key={item}>- {item}</li>
         ))}
