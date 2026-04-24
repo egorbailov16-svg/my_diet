@@ -1,5 +1,5 @@
-const DEFAULT_MODEL = "gemini-2.5-flash";
-const FALLBACK_MODELS = ["gemini-2.5-flash-lite"] as const;
+const DEFAULT_MODEL = "llama-3.1-8b-instant";
+const FALLBACK_MODELS = ["llama-3.3-70b-versatile"] as const;
 
 export type GeminiCallOptions = {
   prompt: string;
@@ -15,38 +15,36 @@ export type GeminiCallResult = {
   text?: string;
   errorMessage?: string;
   usedModel: string;
-  providerId: "google-gemini";
+  providerId: "groq";
 };
 
 function pickApiKey(explicit?: string): string | null {
   if (explicit && explicit.trim().length > 0) return explicit.trim();
   const env =
-    process.env.GEMINI_API_KEY ??
-    process.env.GOOGLE_AI_API_KEY ??
-    process.env.GOOGLE_API_KEY ??
+    process.env.GROQ_API_KEY ??
     "";
   return env.trim().length > 0 ? env.trim() : null;
 }
 
-function buildEndpoint(model: string, key: string): string {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-}
-
-function normalizeGeminiError(status: number, detail: string): string {
+function normalizeProviderError(status: number, detail: string): string {
   const compact = detail.replace(/\s+/g, " ").trim();
   if (status === 429) {
-    return "Квота Gemini временно исчерпана. Подожди немного или проверь лимиты API-ключа в Google AI Studio.";
+    return "Квота AI временно исчерпана (429). Подожди немного и попробуй снова.";
   }
   if (status === 404) {
-    return "Выбранная модель Gemini недоступна для текущего API. Проверь конфигурацию модели.";
+    return "Выбранная модель недоступна у провайдера. Переключаюсь на запасную.";
   }
   if (status === 401 || status === 403) {
-    return "Нет доступа к Gemini API. Проверь корректность и права API-ключа.";
+    return "Нет доступа к Groq API. Проверь корректность GROQ_API_KEY.";
   }
   if (status >= 500) {
-    return "Gemini временно недоступен (ошибка сервера). Попробуй снова чуть позже.";
+    return "Провайдер AI временно недоступен (ошибка сервера). Попробуй снова чуть позже.";
   }
-  return `Gemini ${status}: ${compact.slice(0, 180)}`;
+  return `AI ${status}: ${compact.slice(0, 180)}`;
+}
+
+function buildEndpoint(): string {
+  return "https://api.groq.com/openai/v1/chat/completions";
 }
 
 function dedupeModels(primary: string): string[] {
@@ -60,58 +58,47 @@ export async function callGemini(options: GeminiCallOptions): Promise<GeminiCall
   if (!apiKey) {
     return {
       ok: false,
-      errorMessage: "GEMINI_API_KEY is not configured",
+      errorMessage: "GROQ_API_KEY is not configured",
       usedModel: primaryModel,
-      providerId: "google-gemini",
+      providerId: "groq",
     };
   }
 
-  const body = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: options.prompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: options.temperature ?? 0.4,
-      maxOutputTokens: options.maxOutputTokens ?? 1200,
-      responseMimeType: options.responseMimeType ?? "application/json",
-    },
-  };
-
-  let lastErrorMessage = "Gemini request failed";
+  let lastErrorMessage = "AI request failed";
   let lastModel = primaryModel;
 
   for (const model of dedupeModels(primaryModel)) {
     lastModel = model;
     try {
-      const response = await fetch(buildEndpoint(model, apiKey), {
+      const response = await fetch(buildEndpoint(), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: options.prompt }],
+          temperature: options.temperature ?? 0.4,
+          max_tokens: options.maxOutputTokens ?? 1200,
+          ...(options.responseMimeType === "application/json" ? { response_format: { type: "json_object" } } : {}),
+        }),
       });
 
       if (!response.ok) {
         const detail = await response.text().catch(() => "");
-        lastErrorMessage = normalizeGeminiError(response.status, detail);
+        lastErrorMessage = normalizeProviderError(response.status, detail);
         continue;
       }
 
       const data = (await response.json()) as {
-        candidates?: Array<{
-          content?: { parts?: Array<{ text?: string }> };
-          finishReason?: string;
-        }>;
+        choices?: Array<{ message?: { content?: string } }>;
       };
 
-      const text = data.candidates?.[0]?.content?.parts
-        ?.map((part) => part?.text ?? "")
-        .join("")
-        .trim();
+      const text = data.choices?.[0]?.message?.content?.trim();
 
       if (!text) {
-        lastErrorMessage = "Gemini вернул пустой ответ.";
+        lastErrorMessage = "AI вернул пустой ответ.";
         continue;
       }
 
@@ -119,10 +106,10 @@ export async function callGemini(options: GeminiCallOptions): Promise<GeminiCall
         ok: true,
         text,
         usedModel: model,
-        providerId: "google-gemini",
+        providerId: "groq",
       };
     } catch (error) {
-      lastErrorMessage = error instanceof Error ? error.message : "Gemini request failed";
+      lastErrorMessage = error instanceof Error ? error.message : "AI request failed";
     }
   }
 
@@ -130,7 +117,7 @@ export async function callGemini(options: GeminiCallOptions): Promise<GeminiCall
     ok: false,
     errorMessage: lastErrorMessage,
     usedModel: lastModel,
-    providerId: "google-gemini",
+    providerId: "groq",
   };
 }
 

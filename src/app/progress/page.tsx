@@ -444,7 +444,7 @@ export default function ProgressPage() {
           <Sparkles size={18} className="text-[#8fff70]" />
         </div>
         <p className="text-xs text-[#a7b7cd]">
-          Запросит подробный анализ в Gemini Flash (бесплатный tier). Если сервис недоступен — покажет локальный rule-based отчет.
+          Запросит подробный анализ в Groq (бесплатный tier). Если сервис недоступен — покажет локальный rule-based отчет.
         </p>
         {aiState.status === "loading" ? (
           <p className="text-xs text-[#a7b7cd]">⏳ Запрашиваю анализ...</p>
