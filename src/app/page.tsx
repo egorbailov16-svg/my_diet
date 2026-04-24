@@ -360,7 +360,7 @@ export default function Home() {
 
   useEffect(() => {
     setRationAdviceState({ status: "idle" });
-  }, [focusedDate, entries, currentTarget?.dayType]);
+  }, [focusedDate, currentTarget?.dayType]);
 
   async function updateDayType(dayType: DayLog["dayType"]) {
     if (!focusedLog) return;
@@ -1010,11 +1010,15 @@ export default function Home() {
           type="button"
           onClick={suggestRation}
           disabled={!remainingForAdvice || rationAdviceState.status === "loading"}
-          className="h-11 rounded-lg accent-btn text-sm font-semibold disabled:opacity-40"
+          className="h-11 w-full rounded-lg accent-btn text-sm font-semibold disabled:opacity-40"
         >
           {rationAdviceState.status === "loading" ? "Подбираю..." : "Помочь с рационом"}
         </button>
-        {rationAdviceState.message ? <p className="text-xs text-[#9db0c8]">{rationAdviceState.message}</p> : null}
+        {rationAdviceState.message ? (
+          <p className={`text-xs ${rationAdviceState.status === "error" ? "text-[#ff8095]" : "text-[#9db0c8]"}`}>
+            {rationAdviceState.message}
+          </p>
+        ) : null}
         {rationAdviceState.status === "ready" && rationAdviceState.data ? (
           <div className="space-y-2">
             <p className="text-sm text-[#dce7f5]">{rationAdviceState.data.summary}</p>
