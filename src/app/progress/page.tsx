@@ -2,6 +2,7 @@
 
 import {
   calculateDayTotals,
+  closedDayArchiveRepo,
   dayLogRepo,
   dayTargetRepo,
   foodRepo,
@@ -11,6 +12,7 @@ import {
   recipeIngredientRepo,
   recipeRepo,
   weightLogRepo,
+  type ClosedDayArchive,
   type DayTarget,
   type PeriodAnalysis,
   type PeriodRangeDays,
@@ -19,6 +21,7 @@ import type { DayLog, Food, MealEntry, Recipe, RecipeIngredient, WeightLog } fro
 import { buildFallbackPeriodAnalysisExtended, buildPeriodAnalysis, requestPeriodAnalysis } from "@/lib/ai";
 import type { ExtendedPeriodAnalysis } from "@/lib/ai";
 import { Pencil, Sparkles, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 function todayISODate(): string {
@@ -52,6 +55,7 @@ export default function ProgressPage() {
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [dayLogs, setDayLogs] = useState<DayLog[]>([]);
   const [dayTargets, setDayTargets] = useState<DayTarget[]>([]);
+  const [closedArchives, setClosedArchives] = useState<ClosedDayArchive[]>([]);
   const [mealEntries, setMealEntries] = useState<MealEntry[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -78,7 +82,7 @@ export default function ProgressPage() {
   }, []);
 
   async function loadData() {
-    const [weightLogsList, dayLogsList, dayTargetsList, mealEntriesList, foodsList, recipesList, recipeIngredientsList] = await Promise.all([
+    const [weightLogsList, dayLogsList, dayTargetsList, mealEntriesList, foodsList, recipesList, recipeIngredientsList, closedArchivesList] = await Promise.all([
       weightLogRepo.list(),
       dayLogRepo.list(),
       dayTargetRepo.list(),
@@ -86,6 +90,7 @@ export default function ProgressPage() {
       foodRepo.list(),
       recipeRepo.list(),
       recipeIngredientRepo.list(),
+      closedDayArchiveRepo.list(),
     ]);
 
     setWeightLogs([...weightLogsList].sort((a, b) => b.date.localeCompare(a.date)));
@@ -95,6 +100,7 @@ export default function ProgressPage() {
     setFoods(foodsList);
     setRecipes(recipesList);
     setRecipeIngredients(recipeIngredientsList);
+    setClosedArchives([...closedArchivesList].sort((a, b) => b.date.localeCompare(a.date)));
   }
 
   const todayWeight = useMemo(() => getWeightForDate(weightLogs, today), [weightLogs, today]);
@@ -433,6 +439,36 @@ export default function ProgressPage() {
       <div className="app-card p-3">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Б/Ж/У по дням</p>
         <MacroTrendChart points={periodMacroPoints} />
+      </div>
+
+      <div className="app-card space-y-2.5 p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#9db0c8]">История дней</p>
+          <span className="text-[11px] text-[#8da1bb]">{closedArchives.length} в архиве</span>
+        </div>
+        {closedArchives.length === 0 ? (
+          <p className="text-sm text-[#9db0c8]">Пока нет закрытых дней в архиве.</p>
+        ) : (
+          <div className="space-y-2">
+            {closedArchives.slice(0, 30).map((archive) => (
+              <div key={archive.id} className="app-subcard flex items-center justify-between gap-2 px-3 py-2.5">
+                <div>
+                  <p className="text-[13px] font-semibold text-[#f5f9ff]">{archive.date}</p>
+                  <p className="text-[11px] text-[#8da1bb]">
+                    {archive.dayType === "strength" ? "Силовой" : "Обычный"} · {formatNumber(archive.consumed.kcal)} ккал ·
+                    {" "}Б {formatNumber(archive.consumed.protein)} / Ж {formatNumber(archive.consumed.fat)} / У {formatNumber(archive.consumed.carbs)}
+                  </p>
+                </div>
+                <Link
+                  href={`/?date=${archive.date}`}
+                  className="h-8 rounded-lg bg-[#0d1520] px-3 text-[11px] font-semibold leading-8 text-[#8fff70]"
+                >
+                  Открыть день
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="app-card space-y-3 p-3">

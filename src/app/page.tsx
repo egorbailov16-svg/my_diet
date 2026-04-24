@@ -34,6 +34,10 @@ function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 function nowISO(): string {
   return new Date().toISOString();
 }
@@ -138,6 +142,16 @@ export default function Home() {
   const todayDate = useMemo(() => todayISODate(), []);
   const focusedLabel = useMemo(() => formatTodayDateLabel(focusedDate), [focusedDate]);
   const isViewingToday = focusedDate === todayDate;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const requestedDate = params.get("date");
+    if (requestedDate && isIsoDate(requestedDate) && requestedDate !== focusedDate) {
+      setFocusedDate(requestedDate);
+      setIsArchiveOpen(true);
+    }
+  }, [focusedDate]);
 
   async function refreshDayEntries(dayLogId: string) {
     const mealEntries = await mealEntryRepo.listByDayLogId(dayLogId);
