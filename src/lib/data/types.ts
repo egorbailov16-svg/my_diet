@@ -48,6 +48,19 @@ export type DayTarget = {
   updatedAt: ISODateTime;
 };
 
+export type DayAnalysisData = {
+  summary: string;
+  good: string[];
+  issues: string[];
+  nextDayActions: string[];
+  predictions?: string[];
+  recommendations?: string[];
+  limitations?: string[];
+  source?: "ai" | "rule-based";
+  provider?: string;
+  model?: string;
+};
+
 export type DayLog = {
   id: ISODate;
   date: ISODate;
@@ -61,13 +74,7 @@ export type DayLog = {
   healthSyncedActiveKcal?: number;
   notes?: string;
   status?: DayStatus;
-  dayAnalysis?: {
-    summary: string;
-    good: string[];
-    issues: string[];
-    nextDayActions: string[];
-    limitations?: string[];
-  };
+  dayAnalysis?: DayAnalysisData;
   dayAnalysisAt?: ISODateTime;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
@@ -140,7 +147,54 @@ export type RecentItem = {
   lastAmountG?: number;
 };
 
-export type PeriodRangeDays = 7 | 14 | 30;
+export type PeriodRangeDays = 7 | 14 | 21 | 30 | 60;
+
+export type ClosedDayArchive = {
+  id: ISODate;
+  date: ISODate;
+  dayType: DayType;
+  closedAt: ISODateTime;
+  reopenedAt?: ISODateTime;
+  consumed: NutrientsTotal;
+  netKcal: number;
+  activeKcal: number;
+  micronutrientsTotal: Record<string, number>;
+  vitaminsTotal: Record<string, number>;
+  micronutrientCoverage: number;
+  weightKg?: number;
+  target?: {
+    kcalMin: number;
+    kcalMax: number;
+    proteinTarget: number;
+    fatMin: number;
+    fatMax: number;
+    carbsMin: number;
+    carbsMax: number;
+  };
+  entriesSnapshot: Array<{
+    id: ID;
+    title: string;
+    mealType: string;
+    sourceType: "food" | "recipe";
+    amountG: number;
+    nutrients: NutrientsTotal;
+  }>;
+  analysis?: {
+    summary: string;
+    good: string[];
+    issues: string[];
+    nextDayActions: string[];
+    predictions?: string[];
+    recommendations?: string[];
+    limitations?: string[];
+    source: "ai" | "rule-based";
+    provider?: string;
+    model?: string;
+  };
+  analysisAt?: ISODateTime;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+};
 
 export type PeriodAnalysis = {
   id: string;
@@ -173,4 +227,5 @@ export type DBSchema = {
   weightLogs: WeightLog;
   recentItems: RecentItem;
   periodAnalyses: PeriodAnalysis;
+  closedDayArchives: ClosedDayArchive;
 };

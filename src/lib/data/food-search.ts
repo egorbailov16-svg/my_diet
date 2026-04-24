@@ -26,6 +26,11 @@ type OpenFoodFactsProduct = {
   product_name?: string;
   generic_name?: string;
   brands?: string;
+  image_front_small_url?: string;
+  image_front_url?: string;
+  image_url?: string;
+  image_small_url?: string;
+  image_thumb_url?: string;
   nutriments?: {
     "energy-kcal_100g"?: number;
     "energy-kcal"?: number;
@@ -92,17 +97,17 @@ export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, pro
       generic_name_ru: product.generic_name_ru,
       product_name: product.product_name,
       generic_name: product.generic_name,
+      image_front_small_url: product.image_front_small_url,
+      image_front_url: product.image_front_url,
+      image_url: product.image_url,
+      image_small_url: product.image_small_url,
+      image_thumb_url: product.image_thumb_url,
     },
   };
 }
 
 class OpenFoodFactsProvider implements FoodSearchProvider {
   providerId = "openfoodfacts";
-  private readonly endpointCandidates = [
-    "https://openfoodfacts.org/cgi/search.pl",
-    "https://world.openfoodfacts.net/cgi/search.pl",
-    "https://world.openfoodfacts.org/cgi/search.pl",
-  ];
 
   async searchFoods(query: string): Promise<ExternalFoodSearchResult[]> {
     const trimmed = query.trim();
@@ -110,37 +115,29 @@ class OpenFoodFactsProvider implements FoodSearchProvider {
       return [];
     }
 
-    const params = new URLSearchParams({
-      search_terms: trimmed,
-      search_simple: "1",
-      action: "process",
-      json: "1",
-      page_size: "12",
-      fields: "code,product_name_ru,generic_name_ru,product_name,generic_name,brands,nutriments",
-    });
-
-    let lastError: Error | null = null;
-
-    for (const endpoint of this.endpointCandidates) {
-      try {
-        const response = await fetch(`${endpoint}?${params.toString()}`);
-        if (!response.ok) {
-          lastError = new Error(`OpenFoodFacts request failed with ${response.status}`);
-          continue;
-        }
-
-        const data = (await response.json()) as OpenFoodFactsResponse;
-        const products = data.products ?? [];
-
-        return products
-          .map((product) => normalizeOpenFoodFactsProduct(product, this.providerId))
-          .filter((item): item is ExternalFoodSearchResult => item !== null);
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error("OpenFoodFacts request failed");
-      }
+    const isBrowser = typeof window !== "undefined";
+    if (!isBrowser) {
+      return [];
     }
 
-    throw lastError ?? new Error("OpenFoodFacts unavailable");
+    try {
+      const response = await fetch(`/api/food-search?q=${encodeURIComponent(trimmed)}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`food-search proxy ${response.status}`);
+      }
+      const data = (await response.json()) as OpenFoodFactsResponse;
+      const products = data.products ?? [];
+      return products
+        .map((product) => normalizeOpenFoodFactsProduct(product, this.providerId))
+        .filter((item): item is ExternalFoodSearchResult => item !== null);
+    } catch (error) {
+      console.error("Food search proxy failed", error);
+      return [];
+    }
   }
 }
 

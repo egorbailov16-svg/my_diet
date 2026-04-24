@@ -1,6 +1,7 @@
 import { deleteById, getAll, getById, putMany, putOne } from "@/lib/data/db";
 import { ensureFreshSync, markDeletedInSync, scheduleCloudPush } from "@/lib/data/cloud-sync";
 import type {
+  ClosedDayArchive,
   DayLog,
   DayTarget,
   Food,
@@ -148,4 +149,11 @@ export const periodAnalysisRepo = {
   list: () => getAll("periodAnalyses"),
   getById: (id: string) => getById("periodAnalyses", id),
   upsert: (entry: PeriodAnalysis) => putOne("periodAnalyses", entry),
+};
+
+export const closedDayArchiveRepo = {
+  list: () => getAll("closedDayArchives"),
+  getById: (id: string) => getById("closedDayArchives", id),
+  upsert: (entry: ClosedDayArchive) => putOne("closedDayArchives", entry),
+  remove: (id: string) => deleteById("closedDayArchives", id),
 };

@@ -1,0 +1,71 @@
+import type {
+  ExtendedDayAnalysis,
+  ExtendedPeriodAnalysis,
+  AnalyzeDayInput,
+  AnalyzePeriodInput,
+} from "@/lib/ai/analysis-types";
+
+const ANALYZE_DAY_ENDPOINT = "/api/ai/analyze-day";
+const ANALYZE_PERIOD_ENDPOINT = "/api/ai/analyze-period";
+const REQUEST_TIMEOUT_MS = 35000;
+
+type ApiOk<T> = { ok: true; analysis: T; provider: string; model: string };
+type ApiErr = { ok: false; error: string };
+
+async function postJson<T>(url: string, body: unknown): Promise<T | ApiErr> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const json = (await response.json().catch(() => null)) as T | ApiErr | null;
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: (json && typeof json === "object" && "error" in json && typeof (json as ApiErr).error === "string"
+          ? (json as ApiErr).error
+          : `AI request failed: ${response.status}`),
+      };
+    }
+    if (!json) {
+      return { ok: false, error: "Empty AI response" };
+    }
+    return json as T;
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "AI request failed" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function requestDayAnalysis(payload: AnalyzeDayInput): Promise<{
+  ok: boolean;
+  analysis?: ExtendedDayAnalysis;
+  provider?: string;
+  model?: string;
+  error?: string;
+}> {
+  const result = await postJson<ApiOk<ExtendedDayAnalysis>>(ANALYZE_DAY_ENDPOINT, payload);
+  if ("ok" in result && result.ok) {
+    return { ok: true, analysis: result.analysis, provider: result.provider, model: result.model };
+  }
+  return { ok: false, error: (result as ApiErr).error };
+}
+
+export async function requestPeriodAnalysis(payload: AnalyzePeriodInput): Promise<{
+  ok: boolean;
+  analysis?: ExtendedPeriodAnalysis;
+  provider?: string;
+  model?: string;
+  error?: string;
+}> {
+  const result = await postJson<ApiOk<ExtendedPeriodAnalysis>>(ANALYZE_PERIOD_ENDPOINT, payload);
+  if ("ok" in result && result.ok) {
+    return { ok: true, analysis: result.analysis, provider: result.provider, model: result.model };
+  }
+  return { ok: false, error: (result as ApiErr).error };
+}

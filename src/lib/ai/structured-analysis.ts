@@ -1,5 +1,6 @@
 import type { DayLog, DayTarget, PeriodAnalysis, PeriodRangeDays } from "@/lib/data";
 import type { NutrientsTotal } from "@/lib/data";
+import type { ExtendedDayAnalysis, ExtendedPeriodAnalysis } from "@/lib/ai/analysis-types";
 
 function toFixed(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
@@ -188,5 +189,121 @@ export function buildPeriodAnalysis(input: {
         },
     improve,
     reduce,
+  };
+}
+
+export function buildFallbackDayAnalysisExtended(input: {
+  dayLog: DayLog;
+  target: DayTarget | null;
+  consumed: NutrientsTotal;
+  netKcal: number;
+  micronutrientCoverage: number;
+}): ExtendedDayAnalysis {
+  const base = buildDayAnalysis(input);
+  const estimatedWeeklyDelta = (-input.netKcal * 7) / 7700;
+  const predictions: string[] = [];
+  if (Math.abs(estimatedWeeklyDelta) <= 0.05) {
+    predictions.push("Если такой день будет повторяться, вес будет близок к стабильному.");
+  } else if (estimatedWeeklyDelta > 0) {
+    predictions.push(`При повторении такого дня ожидается рост веса около +${toFixed(estimatedWeeklyDelta)} кг/нед.`);
+  } else {
+    predictions.push(`При повторении такого дня ожидается снижение веса около ${toFixed(estimatedWeeklyDelta)} кг/нед.`);
+  }
+  if (input.dayLog.activeKcal <= 0) {
+    predictions.push("Без активности результаты по форме будут менее заметными.");
+  }
+
+  const recommendations: string[] = [];
+  if (input.target) {
+    if (input.consumed.protein < input.target.proteinTarget - 10) {
+      recommendations.push("Добавить белок в один из приемов (творог, яйца, мясо, протеин).");
+    }
+    if (input.consumed.kcal > input.target.kcalMax) {
+      recommendations.push("Сократить порции или жирные перекусы, чтобы войти в диапазон ккал.");
+    }
+    if (input.consumed.kcal < input.target.kcalMin) {
+      recommendations.push("Добавить полноценный приём пищи, чтобы не уходить в дефицит ниже плана.");
+    }
+  }
+  if (input.micronutrientCoverage < 50) {
+    recommendations.push("Заполнять микро/витамины в карточках продуктов, чтобы анализ был точнее.");
+  }
+  if (recommendations.length === 0) {
+    recommendations.push("Сохрани текущий ритм питания и активности на ближайшие дни.");
+  }
+
+  return {
+    summary: base.summary,
+    good: base.good,
+    issues: base.issues,
+    nextDayActions: base.nextDayActions,
+    predictions,
+    recommendations,
+    limitations: ["Локальный rule-based анализ без внешней AI-модели."],
+  };
+}
+
+export function buildFallbackPeriodAnalysisExtended(input: {
+  rangeDays: PeriodRangeDays;
+  startDate: string;
+  endDate: string;
+  avgWeight: number;
+  deltaWeight: number;
+  avgKcal: number;
+  avgProtein: number;
+  avgFat: number;
+  avgCarbs: number;
+  avgActivity: number;
+  avgNetKcal: number;
+  completedDays: number;
+  totalDays: number;
+  planHitRate: number;
+  micronutrientCoverage: number;
+}): ExtendedPeriodAnalysis {
+  const base = buildPeriodAnalysis({
+    rangeDays: input.rangeDays,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    avgWeight: input.avgWeight,
+    deltaWeight: input.deltaWeight,
+    avgKcal: input.avgKcal,
+    avgProtein: input.avgProtein,
+    avgFat: input.avgFat,
+    avgCarbs: input.avgCarbs,
+    avgActivity: input.avgActivity,
+    completedDays: input.completedDays,
+    planHitRate: input.planHitRate,
+    micronutrientCoverage: input.micronutrientCoverage,
+  });
+
+  const expectedWeeklyDelta = (-input.avgNetKcal * 7) / 7700;
+  const expectedVsActual: string[] = [
+    `Ожидание по net-калоражу: ~${toFixed(expectedWeeklyDelta)} кг/нед.`,
+    `Фактическое изменение веса за период: ${input.deltaWeight > 0 ? "+" : ""}${toFixed(input.deltaWeight)} кг.`,
+  ];
+
+  const recommendations: string[] = [];
+  if (input.planHitRate < 60) recommendations.push("Стабилизировать попадание в КБЖУ хотя бы 4 дня из 7.");
+  if (input.avgActivity < 200) recommendations.push("Поднять среднюю активность хотя бы до 250-300 ккал/день.");
+  if (input.avgProtein < 90) recommendations.push("Целиться в 1.6-2.0 г белка на кг веса в среднем.");
+  if (input.micronutrientCoverage < 50) recommendations.push("Заполнять заметки продуктов микро/витаминами для точного анализа.");
+  if (recommendations.length === 0) recommendations.push("Сохранить текущий ритм и сделать акцент на стабильности.");
+
+  const cutDown: string[] = [...base.reduce];
+  if (input.avgFat > input.avgProtein * 1.2) cutDown.push("Жирные перекусы и соусы.");
+  if (input.avgCarbs > input.avgProtein * 4) cutDown.push("Излишек быстрых углеводов в поздних приемах.");
+
+  return {
+    summary: base.summary,
+    whatWentWell: base.good,
+    whatWentWrong: base.issues,
+    weightAndProgress: base.weightAndProgress,
+    nutrition: base.nutrition,
+    activity: base.activity,
+    micronutrients: [base.micronutrients.text],
+    expectedVsActual,
+    recommendations,
+    cutDown,
+    limitations: ["Локальный rule-based анализ без внешней AI-модели."],
   };
 }

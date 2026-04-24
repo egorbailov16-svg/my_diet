@@ -16,8 +16,9 @@ import {
   type PeriodRangeDays,
 } from "@/lib/data";
 import type { DayLog, Food, MealEntry, Recipe, RecipeIngredient, WeightLog } from "@/lib/data";
-import { buildPeriodAnalysis } from "@/lib/ai";
-import { Pencil, Trash2 } from "lucide-react";
+import { buildFallbackPeriodAnalysisExtended, buildPeriodAnalysis, requestPeriodAnalysis } from "@/lib/ai";
+import type { ExtendedPeriodAnalysis } from "@/lib/ai";
+import { Pencil, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 function todayISODate(): string {
@@ -59,6 +60,13 @@ export default function ProgressPage() {
   const [dateInput, setDateInput] = useState(todayISODate());
   const [weightInput, setWeightInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<ExtendedPeriodAnalysis | null>(null);
+  const [aiState, setAiState] = useState<{
+    status: "idle" | "loading" | "success" | "fallback" | "error";
+    message?: string;
+    provider?: string;
+    model?: string;
+  }>({ status: "idle" });
 
   const today = useMemo(() => todayISODate(), []);
 
@@ -296,6 +304,79 @@ export default function ProgressPage() {
     }
   }
 
+  async function runPeriodAiAnalysis() {
+    const startDate = new Date(periodDates.start).toISOString().slice(0, 10);
+    const endDate = new Date(periodDates.end).toISOString().slice(0, 10);
+    const sortedWeights = [...weightLogs].sort((a, b) => a.date.localeCompare(b.date));
+    const periodWeights = sortedWeights.filter((item) => item.date >= startDate && item.date <= endDate);
+    const weightStartKg = periodWeights[0]?.weightKg ?? null;
+    const weightEndKg = periodWeights[periodWeights.length - 1]?.weightKg ?? null;
+    const avgNetKcal = periodNutrition.kcal - periodNutrition.activity;
+
+    const dailySnapshot = periodTotals.map((item) => ({
+      date: item.dayLog.date,
+      dayType: item.dayLog.dayType,
+      status: item.dayLog.status ?? "active",
+      consumed: item.totals.consumed,
+      activeKcal: item.totals.activeKcal,
+      netKcal: item.totals.netKcal,
+    }));
+
+    const fallback = buildFallbackPeriodAnalysisExtended({
+      rangeDays,
+      startDate,
+      endDate,
+      avgWeight,
+      deltaWeight: weightDelta,
+      avgKcal: periodNutrition.kcal,
+      avgProtein: periodNutrition.protein,
+      avgFat: periodNutrition.fat,
+      avgCarbs: periodNutrition.carbs,
+      avgActivity: periodNutrition.activity,
+      avgNetKcal,
+      completedDays,
+      totalDays: rangeDays,
+      planHitRate,
+      micronutrientCoverage: microCoverage,
+    });
+
+    setAiState({ status: "loading" });
+    try {
+      const result = await requestPeriodAnalysis({
+        rangeDays,
+        startDate,
+        endDate,
+        avgConsumed: {
+          kcal: periodNutrition.kcal,
+          protein: periodNutrition.protein,
+          fat: periodNutrition.fat,
+          carbs: periodNutrition.carbs,
+        },
+        avgActivity: periodNutrition.activity,
+        avgNetKcal,
+        weightStartKg,
+        weightEndKg,
+        weightDeltaKg: weightDelta,
+        completedDays,
+        totalDays: rangeDays,
+        planHitRate,
+        micronutrientCoverage: microCoverage,
+        daily: dailySnapshot,
+      });
+
+      if (result.ok && result.analysis) {
+        setAiAnalysis(result.analysis);
+        setAiState({ status: "success", provider: result.provider, model: result.model });
+      } else {
+        setAiAnalysis(fallback);
+        setAiState({ status: "fallback", message: result.error ? `AI недоступен (${result.error}). Показан локальный отчет.` : "AI недоступен" });
+      }
+    } catch (error) {
+      setAiAnalysis(fallback);
+      setAiState({ status: "fallback", message: error instanceof Error ? error.message : "Ошибка сети" });
+    }
+  }
+
   return (
     <section className="space-y-4 pb-2 text-neutral-100">
       <header className="space-y-2">
@@ -303,15 +384,19 @@ export default function ProgressPage() {
         <h1 className="screen-title">Отчет</h1>
       </header>
 
-      <div className="app-subcard grid grid-cols-3 gap-2 p-2">
-        {[7, 14, 30].map((value) => (
+      <div className="app-subcard grid grid-cols-5 gap-1.5 p-2">
+        {[7, 14, 21, 30, 60].map((value) => (
           <button
             key={value}
             type="button"
-            onClick={() => setRangeDays(value as PeriodRangeDays)}
-            className={`h-10 rounded-xl text-sm font-semibold ${rangeDays === value ? "accent-btn" : "pill-segment text-[#c7d4e5]"}`}
+            onClick={() => {
+              setRangeDays(value as PeriodRangeDays);
+              setAiAnalysis(null);
+              setAiState({ status: "idle" });
+            }}
+            className={`h-9 rounded-xl text-xs font-semibold ${rangeDays === value ? "accent-btn" : "pill-segment text-[#c7d4e5]"}`}
           >
-            {value} дней
+            {value}
           </button>
         ))}
       </div>
@@ -345,23 +430,66 @@ export default function ProgressPage() {
         <MacroTrendChart points={periodMacroPoints} />
       </div>
 
-      {analysisCache ? (
-        <div className="app-card p-3">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">AI-анализ периода</p>
-          <p className="text-sm text-[#e8f0fc]">{analysisCache.summary}</p>
-          <SectionList title="Общий вывод" items={analysisCache.good} />
-          <SectionList title="Основные проблемы" items={analysisCache.issues} />
-          <SectionList title="Анализ веса и прогресса" items={analysisCache.weightAndProgress} />
-          <SectionList title="Анализ питания" items={analysisCache.nutrition} />
-          <SectionList title="Анализ активности" items={analysisCache.activity} />
-          <div className="mt-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#9db0c8]">Анализ микронутриентов</p>
-            <p className="mt-1 text-sm text-[#b8c7da]">{analysisCache.micronutrients.text}</p>
+      <div className="app-card space-y-3 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.11em] text-[#9db0c8]">AI-анализ периода</p>
+            <p className="mt-0.5 text-[15px] font-semibold tracking-[-0.01em] text-[#f6fbff]">{rangeDays} дней</p>
           </div>
-          <SectionList title="Что улучшить" items={analysisCache.improve} />
-          <SectionList title="Что сократить / убрать" items={analysisCache.reduce} />
+          <Sparkles size={18} className="text-[#8fff70]" />
         </div>
-      ) : null}
+        <p className="text-xs text-[#a7b7cd]">
+          Запросит подробный анализ в Gemini Flash (бесплатный tier). Если сервис недоступен — покажет локальный rule-based отчет.
+        </p>
+        {aiState.status === "loading" ? (
+          <p className="text-xs text-[#a7b7cd]">⏳ Запрашиваю анализ...</p>
+        ) : null}
+        {aiState.status === "fallback" || aiState.status === "error" ? (
+          <p className="text-xs text-[#ff8095]">{aiState.message ?? "AI недоступен"}</p>
+        ) : null}
+        {aiState.status === "success" ? (
+          <p className="text-xs text-[#8fff70]">Анализ готов · {aiState.provider}/{aiState.model}</p>
+        ) : null}
+        <button
+          type="button"
+          disabled={aiState.status === "loading"}
+          onClick={runPeriodAiAnalysis}
+          className="h-11 w-full rounded-2xl accent-btn text-sm font-semibold disabled:opacity-40"
+        >
+          {aiState.status === "loading" ? "AI думает..." : "Провести AI-анализ"}
+        </button>
+
+        {aiAnalysis ? (
+          <div className="space-y-2 rounded-2xl bg-[rgba(11,17,28,0.85)] p-3">
+            <p className="text-sm leading-snug text-[#e5edf8]">{aiAnalysis.summary}</p>
+            <PeriodList title="Что хорошо" items={aiAnalysis.whatWentWell} tone="good" />
+            <PeriodList title="Что пошло не так" items={aiAnalysis.whatWentWrong} tone="issue" />
+            <PeriodList title="Вес и прогресс" items={aiAnalysis.weightAndProgress} />
+            <PeriodList title="Питание" items={aiAnalysis.nutrition} />
+            <PeriodList title="Активность" items={aiAnalysis.activity} />
+            <PeriodList title="Микро / витамины" items={aiAnalysis.micronutrients} />
+            <PeriodList title="Что должно было vs что произошло" items={aiAnalysis.expectedVsActual} />
+            <PeriodList title="Рекомендации" items={aiAnalysis.recommendations} />
+            <PeriodList title="Что сократить / убрать" items={aiAnalysis.cutDown} tone="issue" />
+            {aiAnalysis.limitations && aiAnalysis.limitations.length > 0 ? (
+              <p className="text-[10px] text-[#7f91a8]">⓵ {aiAnalysis.limitations.join(" ")}</p>
+            ) : null}
+          </div>
+        ) : analysisCache ? (
+          <div className="space-y-2 rounded-2xl bg-[rgba(11,17,28,0.85)] p-3">
+            <p className="text-xs uppercase tracking-[0.08em] text-[#8da1bb]">Кэшированный rule-based анализ</p>
+            <p className="text-sm text-[#e8f0fc]">{analysisCache.summary}</p>
+            <SectionList title="Общий вывод" items={analysisCache.good} />
+            <SectionList title="Основные проблемы" items={analysisCache.issues} />
+            <SectionList title="Вес и прогресс" items={analysisCache.weightAndProgress} />
+            <SectionList title="Питание" items={analysisCache.nutrition} />
+            <SectionList title="Активность" items={analysisCache.activity} />
+            <p className="mt-2 text-xs text-[#b8c7da]">{analysisCache.micronutrients.text}</p>
+            <SectionList title="Что улучшить" items={analysisCache.improve} />
+            <SectionList title="Что сократить" items={analysisCache.reduce} />
+          </div>
+        ) : null}
+      </div>
 
       <div className="app-card p-3">
         <p className="text-xs text-[#9db0c8]">
@@ -545,6 +673,21 @@ function SectionList({ title, items }: { title: string; items: string[] }) {
       <ul className="mt-1 space-y-1 text-sm text-[#b8c7da]">
         {items.map((item) => (
           <li key={item}>- {item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PeriodList({ title, items, tone }: { title: string; items: string[]; tone?: "good" | "issue" }) {
+  if (!items || items.length === 0) return null;
+  const color = tone === "good" ? "text-[#a8f070]" : tone === "issue" ? "text-[#ff8095]" : "text-[#9db0c8]";
+  return (
+    <div>
+      <p className={`text-[10px] font-semibold uppercase tracking-[0.1em] ${color}`}>{title}</p>
+      <ul className="mt-1 space-y-0.5 text-xs text-[#cfd9e9]">
+        {items.map((item, idx) => (
+          <li key={idx}>· {item}</li>
         ))}
       </ul>
     </div>

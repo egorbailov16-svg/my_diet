@@ -1,7 +1,7 @@
 import type { DBSchema } from "@/lib/data/types";
 
 const DB_NAME = "my-diet-db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const OPEN_DB_TIMEOUT_MS = 4000;
 
 type StoreName = keyof DBSchema;
@@ -17,6 +17,7 @@ const stores: StoreName[] = [
   "weightLogs",
   "recentItems",
   "periodAnalyses",
+  "closedDayArchives",
 ];
 
 let openPromise: Promise<IDBDatabase> | null = null;

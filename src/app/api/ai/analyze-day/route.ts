@@ -1,0 +1,139 @@
+import { NextResponse } from "next/server";
+import { callGemini, safeParseJson } from "@/lib/ai/gemini-client";
+
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
+
+type IncomingPayload = {
+  date: string;
+  dayType: string;
+  consumed: { kcal: number; protein: number; fat: number; carbs: number };
+  activeKcal: number;
+  netKcal: number;
+  target?: {
+    kcalMin: number;
+    kcalMax: number;
+    proteinTarget: number;
+    fatMin: number;
+    fatMax: number;
+    carbsMin: number;
+    carbsMax: number;
+  } | null;
+  micronutrients?: Record<string, number>;
+  vitamins?: Record<string, number>;
+  micronutrientNorms?: Record<string, number>;
+  micronutrientCoverage?: number;
+  entries?: Array<{
+    title: string;
+    mealType?: string;
+    amountG: number;
+    nutrients: { kcal: number; protein: number; fat: number; carbs: number };
+  }>;
+  weightKg?: number | null;
+};
+
+type AnalysisResponse = {
+  summary: string;
+  good: string[];
+  issues: string[];
+  nextDayActions: string[];
+  predictions: string[];
+  recommendations: string[];
+  limitations?: string[];
+};
+
+const SYSTEM_INSTRUCTIONS = `Ты — нутрициолог-аналитик. Анализируешь дневной рацион и активность пользователя.
+Отвечай ТОЛЬКО валидным JSON по этой схеме:
+{
+  "summary": "1-2 предложения, общий итог дня",
+  "good": ["конкретные положительные моменты, 2-5 пунктов"],
+  "issues": ["конкретные проблемы или отклонения, 2-5 пунктов"],
+  "nextDayActions": ["3-5 практичных действий на завтра"],
+  "predictions": ["2-4 предположения о том, как такой день влияет на форму/вес/энергию"],
+  "recommendations": ["3-5 рекомендаций по улучшению на ближайшие дни"],
+  "limitations": ["1-2 пункта про ограничения анализа"]
+}
+Стиль: коротко, по делу, на русском. Без воды, без медицинских диагнозов. Используй фактические числа из данных.`;
+
+function buildPrompt(payload: IncomingPayload): string {
+  return `${SYSTEM_INSTRUCTIONS}
+
+Данные дня (${payload.date}, тип: ${payload.dayType}):
+- Съедено: ${payload.consumed.kcal} ккал, Б ${payload.consumed.protein} г, Ж ${payload.consumed.fat} г, У ${payload.consumed.carbs} г
+- Активные ккал: ${payload.activeKcal}
+- Net (съедено − активность): ${payload.netKcal} ккал
+- Вес сегодня: ${payload.weightKg ?? "не указан"} кг
+
+Цели дня: ${payload.target ? JSON.stringify(payload.target) : "не заданы"}
+
+Микронутриенты (мг/мкг за день): ${JSON.stringify(payload.micronutrients ?? {})}
+Витамины за день: ${JSON.stringify(payload.vitamins ?? {})}
+Дневные нормы (для сравнения): ${JSON.stringify(payload.micronutrientNorms ?? {})}
+Покрытие микронутриентами: ${payload.micronutrientCoverage ?? 0}%
+
+Приёмы пищи: ${JSON.stringify(payload.entries ?? [])}
+
+Верни JSON по схеме выше.`;
+}
+
+export async function POST(request: Request) {
+  let payload: IncomingPayload;
+  try {
+    payload = (await request.json()) as IncomingPayload;
+  } catch {
+    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const result = await callGemini({
+    prompt: buildPrompt(payload),
+    responseMimeType: "application/json",
+    temperature: 0.4,
+    maxOutputTokens: 900,
+  });
+
+  if (!result.ok || !result.text) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: result.errorMessage ?? "AI provider failed",
+        provider: result.providerId,
+        model: result.usedModel,
+      },
+      { status: 502 },
+    );
+  }
+
+  const parsed = safeParseJson<AnalysisResponse>(result.text);
+  if (!parsed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "AI response was not valid JSON",
+        rawText: result.text,
+        provider: result.providerId,
+        model: result.usedModel,
+      },
+      { status: 502 },
+    );
+  }
+
+  const analysis: AnalysisResponse = {
+    summary: parsed.summary?.trim() || "",
+    good: Array.isArray(parsed.good) ? parsed.good.filter(Boolean) : [],
+    issues: Array.isArray(parsed.issues) ? parsed.issues.filter(Boolean) : [],
+    nextDayActions: Array.isArray(parsed.nextDayActions) ? parsed.nextDayActions.filter(Boolean) : [],
+    predictions: Array.isArray(parsed.predictions) ? parsed.predictions.filter(Boolean) : [],
+    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.filter(Boolean) : [],
+    limitations: Array.isArray(parsed.limitations) ? parsed.limitations.filter(Boolean) : undefined,
+  };
+
+  return NextResponse.json(
+    {
+      ok: true,
+      analysis,
+      provider: result.providerId,
+      model: result.usedModel,
+    },
+    { status: 200, headers: { "Cache-Control": "no-store" } },
+  );
+}

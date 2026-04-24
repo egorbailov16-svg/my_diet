@@ -2,25 +2,31 @@
 
 import {
   DAILY_MICRO_NORMS,
+  buildDaySnapshot,
   calculateFoodNutrientsForWeight,
   calculateDayTotals,
   calculateRecipeNutrientDetails,
   calculateRecipePortionNutrients,
   calculateRemainingToDayTarget,
+  closedDayArchiveRepo,
   dayLogRepo,
   dayTargetRepo,
   foodRepo,
   mealEntryRepo,
+  type ClosedDayArchive,
   type DayStatus,
   normalizeNutrientNormKey,
   resolveFoodNutrientDetails,
   recipeIngredientRepo,
   recipeRepo,
+  weightLogRepo,
+  type WeightLog,
 } from "@/lib/data";
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
-import { buildDayAnalysis } from "@/lib/ai";
+import { buildFallbackDayAnalysisExtended, requestDayAnalysis } from "@/lib/ai";
+import type { ExtendedDayAnalysis } from "@/lib/ai";
 import { FoodThumbnail } from "@/components/food-thumbnail";
-import { CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Target, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -49,10 +55,6 @@ function parseWeight(value: string): number {
   const parsed = Number(value.replace(",", "."));
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return Math.round(parsed * 100) / 100;
-}
-
-function hasAnyNutrients(map?: Record<string, number>): boolean {
-  return !!map && Object.keys(map).length > 0;
 }
 
 function getExternalImageUrl(food: Food | undefined): string | undefined {
@@ -112,6 +114,14 @@ export default function Home() {
   const [editingSourceType, setEditingSourceType] = useState<MealEntry["sourceType"]>("food");
   const [editingSourceId, setEditingSourceId] = useState("");
   const [editingWeightInput, setEditingWeightInput] = useState("");
+  const [archives, setArchives] = useState<ClosedDayArchive[]>([]);
+  const [weights, setWeights] = useState<WeightLog[]>([]);
+  const [closeState, setCloseState] = useState<{
+    status: "idle" | "saving" | "ai-loading" | "ai-success" | "ai-fallback" | "error";
+    message?: string;
+    provider?: string;
+    model?: string;
+  }>({ status: "idle" });
 
   const todayDate = useMemo(() => todayISODate(), []);
   const todayLabel = useMemo(() => formatTodayDateLabel(todayDate), [todayDate]);
@@ -141,13 +151,15 @@ export default function Home() {
         updatedAt: currentTime,
       };
 
-      const [dayLog, dayTargets, foodsList, recipesList, recipeIngredients, mealEntries] = await Promise.all([
+      const [dayLog, dayTargets, foodsList, recipesList, recipeIngredients, mealEntries, archivesList, weightLogs] = await Promise.all([
         dayLogRepo.getByDate(todayDate),
         dayTargetRepo.list(),
         foodRepo.list(),
         recipeRepo.list(),
         recipeIngredientRepo.list(),
         mealEntryRepo.listByDayLogId(todayDate),
+        closedDayArchiveRepo.list(),
+        weightLogRepo.list(),
       ]);
 
       if (cancelled) return;
@@ -164,6 +176,8 @@ export default function Home() {
       setRecipes(recipesList);
       setIngredients(recipeIngredients);
       setEntries(mealEntries);
+      setArchives([...archivesList].sort((a, b) => b.date.localeCompare(a.date)));
+      setWeights(weightLogs);
       if (isInitial) setIsLoading(false);
     }
 
@@ -404,37 +418,163 @@ export default function Home() {
 
   async function finishDay() {
     if (!todayLog || !dayTotals) return;
-    const totalEntries = entries.length;
-    const entriesWithDetails = entries.reduce((acc, entry) => {
-      if (entry.sourceType === "food") {
-        const food = foodsById.get(entry.sourceId);
-        if (!food) return acc;
-        const details = resolveFoodNutrientDetails(food);
-        return hasAnyNutrients(details.micronutrientsPer100g) || hasAnyNutrients(details.vitaminsPer100g) ? acc + 1 : acc;
-      }
-      const recipe = recipesById.get(entry.sourceId);
-      if (!recipe) return acc;
-      const recipeIngredients = ingredientsByRecipeId.get(recipe.id) ?? [];
-      const details = calculateRecipeNutrientDetails(recipe, recipeIngredients, foodsById);
-      return hasAnyNutrients(details.micronutrientsPer100g) || hasAnyNutrients(details.vitaminsPer100g) ? acc + 1 : acc;
-    }, 0);
-    const micronutrientCoverage = totalEntries > 0 ? (entriesWithDetails / totalEntries) * 100 : 0;
-    const nextAnalysis = buildDayAnalysis({
+    setCloseState({ status: "saving", message: "Сохраняю snapshot дня..." });
+
+    const snapshot = buildDaySnapshot({
+      dayLog: todayLog,
+      mealEntries: entries,
+      foodsById,
+      recipesById,
+      ingredientsByRecipeId,
+      target: currentTarget,
+      weightKg: weights.find((item) => item.date === todayLog.date)?.weightKg,
+    });
+
+    const baseAnalysis: ExtendedDayAnalysis = buildFallbackDayAnalysisExtended({
       dayLog: todayLog,
       target: currentTarget,
-      consumed: dayTotals.consumed,
-      netKcal: dayTotals.netKcal,
-      micronutrientCoverage,
+      consumed: snapshot.consumed,
+      netKcal: snapshot.netKcal,
+      micronutrientCoverage: snapshot.micronutrientCoverage,
     });
+
+    const closedAt = nowISO();
+    const archive: ClosedDayArchive = {
+      id: todayLog.id,
+      date: todayLog.date,
+      dayType: todayLog.dayType,
+      closedAt,
+      consumed: snapshot.consumed,
+      netKcal: snapshot.netKcal,
+      activeKcal: snapshot.activeKcal,
+      micronutrientsTotal: snapshot.micronutrientsTotal,
+      vitaminsTotal: snapshot.vitaminsTotal,
+      micronutrientCoverage: snapshot.micronutrientCoverage,
+      weightKg: weights.find((item) => item.date === todayLog.date)?.weightKg,
+      target: currentTarget
+        ? {
+            kcalMin: currentTarget.kcalMin,
+            kcalMax: currentTarget.kcalMax,
+            proteinTarget: currentTarget.proteinTarget,
+            fatMin: currentTarget.fatMin,
+            fatMax: currentTarget.fatMax,
+            carbsMin: currentTarget.carbsMin,
+            carbsMax: currentTarget.carbsMax,
+          }
+        : undefined,
+      entriesSnapshot: snapshot.entriesSnapshot,
+      analysis: {
+        ...baseAnalysis,
+        source: "rule-based",
+      },
+      analysisAt: closedAt,
+      createdAt: closedAt,
+      updatedAt: closedAt,
+    };
+
+    await closedDayArchiveRepo.upsert(archive);
+
     const updated: DayLog = {
       ...todayLog,
       status: "completed",
-      dayAnalysis: nextAnalysis,
-      dayAnalysisAt: nowISO(),
-      updatedAt: nowISO(),
+      dayAnalysis: {
+        ...baseAnalysis,
+        source: "rule-based",
+      },
+      dayAnalysisAt: closedAt,
+      updatedAt: closedAt,
     };
     setTodayLog(updated);
     await dayLogRepo.upsert(updated);
+    setArchives((prev) => [archive, ...prev.filter((item) => item.id !== archive.id)]);
+    setCloseState({ status: "ai-loading", message: "Запрашиваю AI-анализ..." });
+
+    try {
+      const microNorms: Record<string, number> = {};
+      for (const key of Object.keys({ ...snapshot.micronutrientsTotal, ...snapshot.vitaminsTotal })) {
+        const norm = DAILY_MICRO_NORMS[normalizeNutrientNormKey(key)];
+        if (norm) microNorms[key] = norm;
+      }
+
+      const aiResult = await requestDayAnalysis({
+        date: todayLog.date,
+        dayType: todayLog.dayType,
+        consumed: snapshot.consumed,
+        activeKcal: snapshot.activeKcal,
+        netKcal: snapshot.netKcal,
+        target: currentTarget
+          ? {
+              kcalMin: currentTarget.kcalMin,
+              kcalMax: currentTarget.kcalMax,
+              proteinTarget: currentTarget.proteinTarget,
+              fatMin: currentTarget.fatMin,
+              fatMax: currentTarget.fatMax,
+              carbsMin: currentTarget.carbsMin,
+              carbsMax: currentTarget.carbsMax,
+            }
+          : null,
+        micronutrients: snapshot.micronutrientsTotal,
+        vitamins: snapshot.vitaminsTotal,
+        micronutrientNorms: microNorms,
+        micronutrientCoverage: snapshot.micronutrientCoverage,
+        entries: snapshot.entriesSnapshot.map((item) => ({
+          title: item.title,
+          mealType: item.mealType,
+          amountG: item.amountG,
+          nutrients: item.nutrients,
+        })),
+        weightKg: archive.weightKg ?? null,
+      });
+
+      if (aiResult.ok && aiResult.analysis) {
+        const aiAt = nowISO();
+        const updatedArchive: ClosedDayArchive = {
+          ...archive,
+          analysis: {
+            ...aiResult.analysis,
+            source: "ai",
+            provider: aiResult.provider,
+            model: aiResult.model,
+          },
+          analysisAt: aiAt,
+          updatedAt: aiAt,
+        };
+        await closedDayArchiveRepo.upsert(updatedArchive);
+        setArchives((prev) => [updatedArchive, ...prev.filter((item) => item.id !== updatedArchive.id)]);
+
+        const updatedLog: DayLog = {
+          ...updated,
+          dayAnalysis: {
+            ...aiResult.analysis,
+            source: "ai",
+            provider: aiResult.provider,
+            model: aiResult.model,
+          },
+          dayAnalysisAt: aiAt,
+          updatedAt: aiAt,
+        };
+        setTodayLog(updatedLog);
+        await dayLogRepo.upsert(updatedLog);
+        setCloseState({
+          status: "ai-success",
+          message: "AI-анализ готов",
+          provider: aiResult.provider,
+          model: aiResult.model,
+        });
+      } else {
+        setCloseState({
+          status: "ai-fallback",
+          message: aiResult.error
+            ? `AI недоступен (${aiResult.error}). Используется локальный анализ.`
+            : "AI недоступен. Используется локальный анализ.",
+        });
+      }
+    } catch (error) {
+      setCloseState({
+        status: "ai-fallback",
+        message: `AI недоступен (${error instanceof Error ? error.message : "ошибка сети"}). Используется локальный анализ.`,
+      });
+    }
   }
 
   async function reopenDay() {
@@ -446,6 +586,76 @@ export default function Home() {
     };
     setTodayLog(updated);
     await dayLogRepo.upsert(updated);
+
+    const existingArchive = archives.find((item) => item.id === todayLog.id);
+    if (existingArchive) {
+      const reopenedAt = nowISO();
+      const next: ClosedDayArchive = {
+        ...existingArchive,
+        reopenedAt,
+        updatedAt: reopenedAt,
+      };
+      await closedDayArchiveRepo.upsert(next);
+      setArchives((prev) => prev.map((item) => (item.id === next.id ? next : item)));
+    }
+
+    setCloseState({ status: "idle" });
+  }
+
+  async function deleteArchive(id: string) {
+    await closedDayArchiveRepo.remove(id);
+    setArchives((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  async function rerunAiAnalysisForArchive(archive: ClosedDayArchive) {
+    setCloseState({ status: "ai-loading", message: `Перезапускаю AI-анализ за ${archive.date}...` });
+    try {
+      const microNorms: Record<string, number> = {};
+      for (const key of Object.keys({ ...archive.micronutrientsTotal, ...archive.vitaminsTotal })) {
+        const norm = DAILY_MICRO_NORMS[normalizeNutrientNormKey(key)];
+        if (norm) microNorms[key] = norm;
+      }
+      const aiResult = await requestDayAnalysis({
+        date: archive.date,
+        dayType: archive.dayType,
+        consumed: archive.consumed,
+        activeKcal: archive.activeKcal,
+        netKcal: archive.netKcal,
+        target: archive.target ?? null,
+        micronutrients: archive.micronutrientsTotal,
+        vitamins: archive.vitaminsTotal,
+        micronutrientNorms: microNorms,
+        micronutrientCoverage: archive.micronutrientCoverage,
+        entries: archive.entriesSnapshot.map((item) => ({
+          title: item.title,
+          mealType: item.mealType,
+          amountG: item.amountG,
+          nutrients: item.nutrients,
+        })),
+        weightKg: archive.weightKg ?? null,
+      });
+      if (aiResult.ok && aiResult.analysis) {
+        const aiAt = nowISO();
+        const next: ClosedDayArchive = {
+          ...archive,
+          analysis: {
+            ...aiResult.analysis,
+            source: "ai",
+            provider: aiResult.provider,
+            model: aiResult.model,
+          },
+          analysisAt: aiAt,
+          updatedAt: aiAt,
+        };
+        await closedDayArchiveRepo.upsert(next);
+        setArchives((prev) => prev.map((item) => (item.id === next.id ? next : item)));
+        setCloseState({ status: "ai-success", message: "AI-анализ обновлен", provider: aiResult.provider, model: aiResult.model });
+      } else {
+        setCloseState({ status: "ai-fallback", message: aiResult.error ?? "AI недоступен" });
+      }
+    } catch (error) {
+      setCloseState({ status: "ai-fallback", message: error instanceof Error ? error.message : "Ошибка сети" });
+    }
   }
 
   if (isLoading || !todayLog) {
@@ -634,13 +844,181 @@ export default function Home() {
               </div>
             ) : <p className="text-sm text-[#9db0c8]">Цели дня не найдены.</p>}
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={finishDay} className="h-11 rounded-lg accent-btn text-sm font-semibold">Закончить день</button>
-            <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-[#0d1520] text-sm font-semibold text-[#c7d4e5]">Открыть снова</button>
-          </div>
         </div>
       </details>
+
+      <div className="app-card space-y-3 px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Завершение дня</p>
+            <p className="mt-1 text-[15px] font-semibold tracking-[-0.01em] text-[#f6fbff]">
+              {todayLog.status === "completed" ? "День закрыт" : "День открыт"}
+            </p>
+          </div>
+          <Sparkles size={18} className="text-[#8fff70]" />
+        </div>
+        {closeState.status !== "idle" ? (
+          <p className={`text-xs ${closeState.status === "ai-success" ? "text-[#8fff70]" : closeState.status === "error" ? "text-[#ff8095]" : "text-[#a7b7cd]"}`}>
+            {closeState.status === "saving" || closeState.status === "ai-loading" ? "⏳ " : ""}{closeState.message ?? ""}
+            {closeState.provider ? ` · ${closeState.provider}/${closeState.model}` : ""}
+          </p>
+        ) : null}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={finishDay}
+            disabled={closeState.status === "saving" || closeState.status === "ai-loading"}
+            className="h-11 rounded-lg accent-btn text-sm font-semibold disabled:opacity-40"
+          >
+            {closeState.status === "ai-loading" ? "AI думает..." : closeState.status === "saving" ? "Сохраняю..." : todayLog.status === "completed" ? "Пересохранить день" : "Закончить день"}
+          </button>
+          <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-[#0d1520] text-sm font-semibold text-[#c7d4e5]">
+            Открыть снова
+          </button>
+        </div>
+      </div>
+
+      {todayLog.status === "completed" && todayLog.dayAnalysis ? (
+        <DayAnalysisCard analysis={todayLog.dayAnalysis} dateLabel="Сегодня" generatedAt={todayLog.dayAnalysisAt} />
+      ) : null}
+
+      {archives.length > 0 ? (
+        <details className="app-card px-4 py-3">
+          <summary className="cursor-pointer text-xs uppercase tracking-[0.11em] text-[#9db0c8]">
+            Архив закрытых дней ({archives.length})
+          </summary>
+          <div className="mt-3 space-y-2.5">
+            {archives.slice(0, 30).map((archive) => (
+              <ArchiveDayCard
+                key={archive.id}
+                archive={archive}
+                onDelete={() => deleteArchive(archive.id)}
+                onRerunAi={() => rerunAiAnalysisForArchive(archive)}
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </section>
+  );
+}
+
+function DayAnalysisCard({
+  analysis,
+  dateLabel,
+  generatedAt,
+}: {
+  analysis: NonNullable<DayLog["dayAnalysis"]>;
+  dateLabel: string;
+  generatedAt?: string;
+}) {
+  return (
+    <div className="app-card space-y-2.5 px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.11em] text-[#9db0c8]">AI-анализ дня</p>
+          <p className="mt-0.5 text-[15px] font-semibold tracking-[-0.01em] text-[#f6fbff]">{dateLabel}</p>
+        </div>
+        <span className="rounded-full bg-[rgba(132,225,75,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8fff70]">
+          {analysis.source === "ai" ? `AI · ${analysis.model ?? "gemini"}` : "Локально"}
+        </span>
+      </div>
+      <p className="text-sm leading-snug text-[#e5edf8]">{analysis.summary}</p>
+      <BulletList title="Что хорошо" items={analysis.good} tone="good" />
+      <BulletList title="Что отклонилось" items={analysis.issues} tone="issue" />
+      <BulletList title="Действия на завтра" items={analysis.nextDayActions} />
+      {analysis.predictions && analysis.predictions.length > 0 ? (
+        <BulletList title="Прогноз по форме и весу" items={analysis.predictions} />
+      ) : null}
+      {analysis.recommendations && analysis.recommendations.length > 0 ? (
+        <BulletList title="Рекомендации" items={analysis.recommendations} />
+      ) : null}
+      {analysis.limitations && analysis.limitations.length > 0 ? (
+        <p className="text-[10px] text-[#7f91a8]">⓵ {analysis.limitations.join(" ")}</p>
+      ) : null}
+      {generatedAt ? (
+        <p className="text-[10px] text-[#7f91a8]">Готово: {new Date(generatedAt).toLocaleString("ru-RU")}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function BulletList({ title, items, tone }: { title: string; items: string[]; tone?: "good" | "issue" }) {
+  if (!items || items.length === 0) return null;
+  const color =
+    tone === "good" ? "text-[#a8f070]" : tone === "issue" ? "text-[#ff8095]" : "text-[#9db0c8]";
+  return (
+    <div>
+      <p className={`text-[10px] font-semibold uppercase tracking-[0.1em] ${color}`}>{title}</p>
+      <ul className="mt-1 space-y-0.5 text-xs text-[#cfd9e9]">
+        {items.map((item, idx) => (
+          <li key={idx}>· {item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ArchiveDayCard({
+  archive,
+  onDelete,
+  onRerunAi,
+}: {
+  archive: ClosedDayArchive;
+  onDelete: () => void;
+  onRerunAi: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(11,17,28,0.85)] p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[13px] font-semibold text-[#f5f9ff]">{archive.date}</p>
+          <p className="text-[10px] uppercase tracking-[0.08em] text-[#8da1bb]">
+            {archive.dayType === "strength" ? "Силовой день" : "Обычный день"} · закрыт {new Date(archive.closedAt).toLocaleString("ru-RU")}
+          </p>
+        </div>
+        <span className="rounded-full bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#a7b7cd]">
+          {archive.analysis?.source === "ai" ? "AI" : "rule-based"}
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-[#b8c7da] sm:grid-cols-4">
+        <span>K {formatNumber(archive.consumed.kcal)} ккал</span>
+        <span>Б {formatNumber(archive.consumed.protein)} г</span>
+        <span>Ж {formatNumber(archive.consumed.fat)} г</span>
+        <span>У {formatNumber(archive.consumed.carbs)} г</span>
+        <span>Активность {formatNumber(archive.activeKcal)} ккал</span>
+        <span>Net {formatNumber(archive.netKcal)} ккал</span>
+        <span>Микро покрытие {formatNumber(archive.micronutrientCoverage)}%</span>
+        <span>{archive.weightKg ? `${formatNumber(archive.weightKg)} кг` : "вес не указан"}</span>
+      </div>
+      {archive.analysis ? (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9db0c8]">
+            Показать анализ
+          </summary>
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-[#e5edf8]">{archive.analysis.summary}</p>
+            <BulletList title="Хорошо" items={archive.analysis.good} tone="good" />
+            <BulletList title="Отклонения" items={archive.analysis.issues} tone="issue" />
+            <BulletList title="На следующий день" items={archive.analysis.nextDayActions} />
+            {archive.analysis.predictions && archive.analysis.predictions.length > 0 ? (
+              <BulletList title="Прогноз" items={archive.analysis.predictions} />
+            ) : null}
+            {archive.analysis.recommendations && archive.analysis.recommendations.length > 0 ? (
+              <BulletList title="Рекомендации" items={archive.analysis.recommendations} />
+            ) : null}
+          </div>
+        </details>
+      ) : null}
+      <div className="mt-2 flex gap-2">
+        <button type="button" onClick={onRerunAi} className="h-8 flex-1 rounded-lg secondary-btn text-[11px] font-semibold">
+          Перезапросить AI
+        </button>
+        <button type="button" onClick={onDelete} className="icon-action-btn danger-btn" aria-label="Удалить запись из архива">
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
   );
 }
 
