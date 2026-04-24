@@ -23,8 +23,8 @@ import {
   type WeightLog,
 } from "@/lib/data";
 import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, RecipeIngredient } from "@/lib/data";
-import { buildFallbackDayAnalysisExtended, requestDayAnalysis } from "@/lib/ai";
-import type { ExtendedDayAnalysis } from "@/lib/ai";
+import { buildFallbackDayAnalysisExtended, requestDayAnalysis, requestRationAdvice } from "@/lib/ai";
+import type { AnalyzeRationInput, ExtendedDayAnalysis, RationAdvice } from "@/lib/ai";
 import { FoodThumbnail } from "@/components/food-thumbnail";
 import { ArrowLeft, CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -123,6 +123,13 @@ export default function Home() {
     message?: string;
     provider?: string;
     model?: string;
+  }>({ status: "idle" });
+  const [rationAdviceState, setRationAdviceState] = useState<{
+    status: "idle" | "loading" | "ready" | "error";
+    data?: RationAdvice;
+    provider?: string;
+    model?: string;
+    message?: string;
   }>({ status: "idle" });
 
   const todayDate = useMemo(() => todayISODate(), []);
@@ -340,6 +347,20 @@ export default function Home() {
     if (!remaining) return 0;
     return Math.max(0, remaining.kcalMax);
   }, [remaining]);
+
+  const remainingForAdvice = useMemo(() => {
+    if (!currentTarget || !dayTotals) return null;
+    return {
+      kcal: Math.max(0, currentTarget.kcalMax - dayTotals.consumed.kcal),
+      protein: Math.max(0, currentTarget.proteinTarget - dayTotals.consumed.protein),
+      fat: Math.max(0, currentTarget.fatMax - dayTotals.consumed.fat),
+      carbs: Math.max(0, currentTarget.carbsMax - dayTotals.consumed.carbs),
+    };
+  }, [currentTarget, dayTotals]);
+
+  useEffect(() => {
+    setRationAdviceState({ status: "idle" });
+  }, [focusedDate, entries, currentTarget?.dayType]);
 
   async function updateDayType(dayType: DayLog["dayType"]) {
     if (!focusedLog) return;
@@ -729,6 +750,66 @@ export default function Home() {
     }
   }
 
+  async function suggestRation() {
+    if (!dayTotals || !currentTarget || !remainingForAdvice) return;
+    setRationAdviceState({ status: "loading", message: "AI подбирает, что лучше съесть сегодня..." });
+    try {
+      const candidateFoods: AnalyzeRationInput["candidates"] = foods.slice(0, 40).map((food) => ({
+        id: food.id,
+        type: "food",
+        title: food.name,
+        nutrientsPer100g: food.nutrientsPer100g,
+      }));
+      const candidateRecipes: AnalyzeRationInput["candidates"] = recipes.slice(0, 20).map((recipe) => {
+        const recipeIngredients = ingredientsByRecipeId.get(recipe.id) ?? [];
+        const details = calculateRecipePortionNutrients(recipe, recipeIngredients, foodsById, 100);
+        return {
+          id: recipe.id,
+          type: "recipe" as const,
+          title: recipe.name,
+          nutrientsPer100g: details,
+        };
+      });
+      const candidates = [...candidateFoods, ...candidateRecipes].filter((item) => item.nutrientsPer100g.kcal > 0);
+      if (candidates.length === 0) {
+        setRationAdviceState({ status: "error", message: "Нет продуктов/блюд с КБЖУ для подбора." });
+        return;
+      }
+
+      const result = await requestRationAdvice({
+        date: focusedDate,
+        consumed: dayTotals.consumed,
+        target: {
+          kcalMin: currentTarget.kcalMin,
+          kcalMax: currentTarget.kcalMax,
+          proteinTarget: currentTarget.proteinTarget,
+          fatMin: currentTarget.fatMin,
+          fatMax: currentTarget.fatMax,
+          carbsMin: currentTarget.carbsMin,
+          carbsMax: currentTarget.carbsMax,
+        },
+        remaining: remainingForAdvice,
+        candidates: candidates.slice(0, 60),
+      });
+
+      if (result.ok && result.advice) {
+        setRationAdviceState({
+          status: "ready",
+          data: result.advice,
+          provider: result.provider,
+          model: result.model,
+        });
+      } else {
+        setRationAdviceState({ status: "error", message: result.error ?? "Не удалось подобрать рекомендации." });
+      }
+    } catch (error) {
+      setRationAdviceState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Ошибка подбора рациона",
+      });
+    }
+  }
+
   if (isLoading || !focusedLog) {
     return <section className="py-4 text-sm text-[#9db0c8]">Загрузка...</section>;
   }
@@ -908,6 +989,64 @@ export default function Home() {
           </div>
           <p className="max-w-[128px] text-right text-xs leading-tight text-[#97ed7e]">Отлично! Ты на правильном пути.</p>
         </div>
+      </div>
+
+      <div className="app-card space-y-3 px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Помощь с рационом</p>
+            <p className="mt-1 text-[15px] font-semibold tracking-[-0.01em] text-[#f6fbff]">Что можно еще съесть сегодня</p>
+          </div>
+          <Sparkles size={18} className="text-[#8fff70]" />
+        </div>
+        {remainingForAdvice ? (
+          <p className="text-xs text-[#a7b7cd]">
+            Остаток: {formatNumber(remainingForAdvice.kcal)} ккал · Б {formatNumber(remainingForAdvice.protein)} · Ж {formatNumber(remainingForAdvice.fat)} · У {formatNumber(remainingForAdvice.carbs)}
+          </p>
+        ) : (
+          <p className="text-xs text-[#a7b7cd]">Нет целей дня, чтобы сделать точный подбор.</p>
+        )}
+        <button
+          type="button"
+          onClick={suggestRation}
+          disabled={!remainingForAdvice || rationAdviceState.status === "loading"}
+          className="h-11 rounded-lg accent-btn text-sm font-semibold disabled:opacity-40"
+        >
+          {rationAdviceState.status === "loading" ? "Подбираю..." : "Помочь с рационом"}
+        </button>
+        {rationAdviceState.message ? <p className="text-xs text-[#9db0c8]">{rationAdviceState.message}</p> : null}
+        {rationAdviceState.status === "ready" && rationAdviceState.data ? (
+          <div className="space-y-2">
+            <p className="text-sm text-[#dce7f5]">{rationAdviceState.data.summary}</p>
+            {rationAdviceState.provider ? (
+              <p className="text-[10px] text-[#7f91a8]">{rationAdviceState.provider}/{rationAdviceState.model}</p>
+            ) : null}
+            {rationAdviceState.data.suggestions.map((item, index) => (
+              <div key={`${item.title}-${index}`} className="app-subcard p-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-[#f4f9ff]">
+                      {item.title} · {item.portionG} г
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-[#8da1bb]">{item.type === "recipe" ? "Блюдо" : "Продукт"}</p>
+                  </div>
+                  <p className="text-xs text-[#9db0c8]">{item.estimated.kcal} ккал</p>
+                </div>
+                <p className="mt-1 text-[11px] text-[#a9b9cd]">
+                  Б {formatNumber(item.estimated.protein)} · Ж {formatNumber(item.estimated.fat)} · У {formatNumber(item.estimated.carbs)}
+                </p>
+                <p className="mt-1 text-xs text-[#cfd9e9]">{item.reason}</p>
+              </div>
+            ))}
+            {rationAdviceState.data.notes && rationAdviceState.data.notes.length > 0 ? (
+              <ul className="space-y-0.5 text-xs text-[#8da1bb]">
+                {rationAdviceState.data.notes.map((note, idx) => (
+                  <li key={idx}>· {note}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <details className="app-card px-4 py-3">

@@ -3,10 +3,13 @@ import type {
   ExtendedPeriodAnalysis,
   AnalyzeDayInput,
   AnalyzePeriodInput,
+  AnalyzeRationInput,
+  RationAdvice,
 } from "@/lib/ai/analysis-types";
 
 const ANALYZE_DAY_ENDPOINT = "/api/ai/analyze-day";
 const ANALYZE_PERIOD_ENDPOINT = "/api/ai/analyze-period";
+const ANALYZE_RATION_ENDPOINT = "/api/ai/suggest-ration";
 const REQUEST_TIMEOUT_MS = 35000;
 
 type ApiOk<T> = { ok: true; analysis: T; provider: string; model: string };
@@ -66,6 +69,20 @@ export async function requestPeriodAnalysis(payload: AnalyzePeriodInput): Promis
   const result = await postJson<ApiOk<ExtendedPeriodAnalysis>>(ANALYZE_PERIOD_ENDPOINT, payload);
   if ("ok" in result && result.ok) {
     return { ok: true, analysis: result.analysis, provider: result.provider, model: result.model };
+  }
+  return { ok: false, error: (result as ApiErr).error };
+}
+
+export async function requestRationAdvice(payload: AnalyzeRationInput): Promise<{
+  ok: boolean;
+  advice?: RationAdvice;
+  provider?: string;
+  model?: string;
+  error?: string;
+}> {
+  const result = await postJson<ApiOk<RationAdvice>>(ANALYZE_RATION_ENDPOINT, payload);
+  if ("ok" in result && result.ok) {
+    return { ok: true, advice: result.analysis, provider: result.provider, model: result.model };
   }
   return { ok: false, error: (result as ApiErr).error };
 }

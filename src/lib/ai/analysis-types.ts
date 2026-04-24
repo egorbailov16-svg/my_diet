@@ -77,3 +77,45 @@ export type AnalyzePeriodInput = {
   }>;
   notes?: string;
 };
+
+export type RationCandidate = {
+  id: string;
+  type: "food" | "recipe";
+  title: string;
+  nutrientsPer100g: { kcal: number; protein: number; fat: number; carbs: number };
+};
+
+export type AnalyzeRationInput = {
+  date: string;
+  consumed: { kcal: number; protein: number; fat: number; carbs: number };
+  target: {
+    kcalMin: number;
+    kcalMax: number;
+    proteinTarget: number;
+    fatMin: number;
+    fatMax: number;
+    carbsMin: number;
+    carbsMax: number;
+  };
+  remaining: {
+    kcal: number;
+    protein: number;
+    fat: number;
+    carbs: number;
+  };
+  candidates: RationCandidate[];
+};
+
+export type RationSuggestion = {
+  title: string;
+  type: "food" | "recipe";
+  portionG: number;
+  estimated: { kcal: number; protein: number; fat: number; carbs: number };
+  reason: string;
+};
+
+export type RationAdvice = {
+  summary: string;
+  suggestions: RationSuggestion[];
+  notes?: string[];
+};
