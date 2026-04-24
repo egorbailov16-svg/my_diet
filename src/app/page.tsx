@@ -116,6 +116,7 @@ export default function Home() {
   const [editingSourceId, setEditingSourceId] = useState("");
   const [editingWeightInput, setEditingWeightInput] = useState("");
   const [archives, setArchives] = useState<ClosedDayArchive[]>([]);
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [weights, setWeights] = useState<WeightLog[]>([]);
   const [weightInput, setWeightInput] = useState("");
   const [closeState, setCloseState] = useState<{
@@ -193,6 +194,9 @@ export default function Home() {
       setWeights(weightLogs);
       const todaysWeight = weightLogs.find((item) => item.date === focusedDate);
       setWeightInput(todaysWeight ? String(todaysWeight.weightKg) : "");
+      if (!isViewingToday && archivesList.some((item) => item.date === focusedDate)) {
+        setIsArchiveOpen(true);
+      }
       if (isInitial) setIsLoading(false);
     }
 
@@ -1159,7 +1163,21 @@ export default function Home() {
       ) : null}
 
       {archives.length > 0 ? (
-        <details className="app-card px-4 py-3">
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setIsArchiveOpen((prev) => !prev)}
+            className="app-subcard flex w-full items-center justify-between px-3 py-2.5 text-left"
+          >
+            <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#9db0c8]">
+              <CalendarDays size={14} />
+              Просмотр прошлых дней
+            </span>
+            <span className="text-[11px] font-semibold text-[#8fff70]">
+              {isArchiveOpen ? "Скрыть" : `Открыть (${archives.length})`}
+            </span>
+          </button>
+          <details className="app-card px-4 py-3" open={isArchiveOpen} onToggle={(event) => setIsArchiveOpen((event.currentTarget as HTMLDetailsElement).open)}>
           <summary className="cursor-pointer text-xs uppercase tracking-[0.11em] text-[#9db0c8]">
             Архив закрытых дней ({archives.length})
           </summary>
@@ -1176,6 +1194,7 @@ export default function Home() {
             ))}
           </div>
         </details>
+        </div>
       ) : null}
     </section>
   );
