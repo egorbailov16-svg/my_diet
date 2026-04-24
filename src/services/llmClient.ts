@@ -13,6 +13,11 @@ export type LlmStreamChunk = {
   reasoningContent: string;
 };
 
+export type LlmGenerateOptions = {
+  maxTokens?: number;
+  timeoutMs?: number;
+};
+
 export class LlmClientError extends Error {
   statusCode?: number;
 
@@ -35,6 +40,7 @@ function createClient(): OpenAI {
   return new OpenAI({
     apiKey: getApiKey(),
     baseURL: NVIDIA_BASE_URL,
+    timeout: 25000,
   });
 }
 
@@ -66,8 +72,11 @@ function asText(value: unknown): string {
   return "";
 }
 
-export async function* generateResponse(messages: LlmMessage[]): AsyncGenerator<LlmStreamChunk> {
+export async function* generateResponse(messages: LlmMessage[], options?: LlmGenerateOptions): AsyncGenerator<LlmStreamChunk> {
   const client = createClient();
+  const startedAt = Date.now();
+  const timeoutMs = Math.max(5000, options?.timeoutMs ?? 25000);
+  const maxTokens = Math.max(256, options?.maxTokens ?? 8192);
   try {
     const requestBody: Record<string, unknown> = {
       model: NVIDIA_MODEL,
@@ -75,7 +84,7 @@ export async function* generateResponse(messages: LlmMessage[]): AsyncGenerator<
       stream: true,
       temperature: 1,
       top_p: 0.95,
-      max_tokens: 8192,
+      max_tokens: maxTokens,
       extra_body: {
         chat_template_kwargs: {
           thinking: true,
@@ -87,6 +96,9 @@ export async function* generateResponse(messages: LlmMessage[]): AsyncGenerator<
     )) as AsyncIterable<unknown>;
 
     for await (const part of stream as AsyncIterable<{ choices?: Array<{ delta?: { content?: unknown; reasoning_content?: unknown } }> }>) {
+      if (Date.now() - startedAt > timeoutMs) {
+        throw new LlmClientError("Таймаут LLM-запроса. Попробуй еще раз.");
+      }
       const delta = (part.choices?.[0]?.delta ?? {}) as { content?: unknown; reasoning_content?: unknown };
       yield {
         content: asText(delta.content),
@@ -98,7 +110,7 @@ export async function* generateResponse(messages: LlmMessage[]): AsyncGenerator<
   }
 }
 
-export async function collectResponse(messages: LlmMessage[]): Promise<{
+export async function collectResponse(messages: LlmMessage[], options?: LlmGenerateOptions): Promise<{
   contentText: string;
   reasoningText: string;
   mergedText: string;
@@ -107,7 +119,7 @@ export async function collectResponse(messages: LlmMessage[]): Promise<{
 }> {
   let contentText = "";
   let reasoningText = "";
-  for await (const chunk of generateResponse(messages)) {
+  for await (const chunk of generateResponse(messages, options)) {
     if (chunk.content) contentText += chunk.content;
     if (chunk.reasoningContent) reasoningText += chunk.reasoningContent;
   }

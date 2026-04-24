@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     async start(controller) {
       try {
         controller.enqueue(encoder.encode(sseLine({ type: "meta", provider: "nvidia-deepseek", model: NVIDIA_MODEL })));
-        for await (const chunk of generateResponse(messages)) {
+        for await (const chunk of generateResponse(messages, { maxTokens: 8192, timeoutMs: 30000 })) {
           if (chunk.content) {
             controller.enqueue(encoder.encode(sseLine({ type: "content", delta: chunk.content })));
           }
