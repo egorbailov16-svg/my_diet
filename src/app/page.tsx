@@ -26,7 +26,7 @@ import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, Recipe
 import { buildFallbackDayAnalysisExtended, requestDayAnalysis } from "@/lib/ai";
 import type { ExtendedDayAnalysis } from "@/lib/ai";
 import { FoodThumbnail } from "@/components/food-thumbnail";
-import { CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Sparkles, Target, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -104,7 +104,8 @@ type EntryWithNutrients = {
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
-  const [todayLog, setTodayLog] = useState<DayLog | null>(null);
+  const [focusedDate, setFocusedDate] = useState<string>(() => todayISODate());
+  const [focusedLog, setFocusedLog] = useState<DayLog | null>(null);
   const [targets, setTargets] = useState<DayTarget[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -116,6 +117,7 @@ export default function Home() {
   const [editingWeightInput, setEditingWeightInput] = useState("");
   const [archives, setArchives] = useState<ClosedDayArchive[]>([]);
   const [weights, setWeights] = useState<WeightLog[]>([]);
+  const [weightInput, setWeightInput] = useState("");
   const [closeState, setCloseState] = useState<{
     status: "idle" | "saving" | "ai-loading" | "ai-success" | "ai-fallback" | "error";
     message?: string;
@@ -124,7 +126,8 @@ export default function Home() {
   }>({ status: "idle" });
 
   const todayDate = useMemo(() => todayISODate(), []);
-  const todayLabel = useMemo(() => formatTodayDateLabel(todayDate), [todayDate]);
+  const focusedLabel = useMemo(() => formatTodayDateLabel(focusedDate), [focusedDate]);
+  const isViewingToday = focusedDate === todayDate;
 
   async function refreshDayEntries(dayLogId: string) {
     const mealEntries = await mealEntryRepo.listByDayLogId(dayLogId);
@@ -134,12 +137,13 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadTodayData(isInitial: boolean) {
+    async function loadDayData(isInitial: boolean) {
       const currentTime = nowISO();
+      const isToday = focusedDate === todayISODate();
 
       const fallbackLog: DayLog = {
-        id: todayDate,
-        date: todayDate,
+        id: focusedDate,
+        date: focusedDate,
         dayType: "normal",
         status: "active",
         activeKcal: 0,
@@ -152,12 +156,12 @@ export default function Home() {
       };
 
       const [dayLog, dayTargets, foodsList, recipesList, recipeIngredients, mealEntries, archivesList, weightLogs] = await Promise.all([
-        dayLogRepo.getByDate(todayDate),
+        dayLogRepo.getByDate(focusedDate),
         dayTargetRepo.list(),
         foodRepo.list(),
         recipeRepo.list(),
         recipeIngredientRepo.list(),
-        mealEntryRepo.listByDayLogId(todayDate),
+        mealEntryRepo.listByDayLogId(focusedDate),
         closedDayArchiveRepo.list(),
         weightLogRepo.list(),
       ]);
@@ -166,11 +170,11 @@ export default function Home() {
 
       const safeDayLog: DayLog = dayLog ?? fallbackLog;
 
-      if (!dayLog && isInitial) {
+      if (!dayLog && isInitial && isToday) {
         await dayLogRepo.upsert(safeDayLog);
       }
 
-      setTodayLog(safeDayLog);
+      setFocusedLog(safeDayLog);
       setTargets(dayTargets);
       setFoods(foodsList);
       setRecipes(recipesList);
@@ -178,23 +182,25 @@ export default function Home() {
       setEntries(mealEntries);
       setArchives([...archivesList].sort((a, b) => b.date.localeCompare(a.date)));
       setWeights(weightLogs);
+      const todaysWeight = weightLogs.find((item) => item.date === focusedDate);
+      setWeightInput(todaysWeight ? String(todaysWeight.weightKg) : "");
       if (isInitial) setIsLoading(false);
     }
 
-    loadTodayData(true).catch((error: unknown) => {
-      console.error("Failed to load today data", error);
+    loadDayData(true).catch((error: unknown) => {
+      console.error("Failed to load day data", error);
       setIsLoading(false);
     });
 
     const intervalId = window.setInterval(() => {
-      loadTodayData(false).catch((error: unknown) => console.error("Background today sync failed", error));
+      loadDayData(false).catch((error: unknown) => console.error("Background day sync failed", error));
     }, 15000);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [todayDate]);
+  }, [focusedDate]);
 
   const foodsById = useMemo(() => new Map(foods.map((food) => [food.id, food])), [foods]);
   const recipesById = useMemo(() => new Map(recipes.map((recipe) => [recipe.id, recipe])), [recipes]);
@@ -210,23 +216,23 @@ export default function Home() {
   }, [ingredients]);
 
   const currentTarget = useMemo(() => {
-    if (!todayLog) return null;
-    return targets.find((target) => target.dayType === todayLog.dayType) ?? null;
-  }, [targets, todayLog]);
+    if (!focusedLog) return null;
+    return targets.find((target) => target.dayType === focusedLog.dayType) ?? null;
+  }, [targets, focusedLog]);
 
   const dayTotals = useMemo(() => {
-    if (!todayLog) {
+    if (!focusedLog) {
       return null;
     }
 
     return calculateDayTotals({
-      dayLog: todayLog,
+      dayLog: focusedLog,
       mealEntries: entries,
       foodsById,
       recipesById,
       recipeIngredientsByRecipeId: ingredientsByRecipeId,
     });
-  }, [todayLog, entries, foodsById, recipesById, ingredientsByRecipeId]);
+  }, [focusedLog, entries, foodsById, recipesById, ingredientsByRecipeId]);
 
   const remaining = useMemo(() => {
     if (!dayTotals || !currentTarget) {
@@ -336,23 +342,88 @@ export default function Home() {
   }, [remaining]);
 
   async function updateDayType(dayType: DayLog["dayType"]) {
-    if (!todayLog) return;
-    const updated: DayLog = { ...todayLog, dayType, updatedAt: nowISO() };
-    setTodayLog(updated);
+    if (!focusedLog) return;
+    const updated: DayLog = { ...focusedLog, dayType, updatedAt: nowISO() };
+    setFocusedLog(updated);
     await dayLogRepo.upsert(updated);
   }
 
   async function updateActiveKcal(value: number) {
-    if (!todayLog) return;
+    if (!focusedLog) return;
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
     const updated: DayLog = {
-      ...todayLog,
+      ...focusedLog,
       activeKcal: safeValue,
       activitySource: "manual",
       updatedAt: nowISO(),
     };
-    setTodayLog(updated);
+    setFocusedLog(updated);
     await dayLogRepo.upsert(updated);
+  }
+
+  async function saveWeightForFocusedDay() {
+    const parsed = parseWeight(weightInput);
+    if (parsed <= 0) return;
+    const existing = weights.find((item) => item.date === focusedDate);
+    const now = nowISO();
+    const record: WeightLog = existing
+      ? { ...existing, weightKg: parsed, updatedAt: now }
+      : {
+          id: `${focusedDate}-weight`,
+          date: focusedDate,
+          weightKg: parsed,
+          createdAt: now,
+          updatedAt: now,
+        };
+    await weightLogRepo.upsert(record);
+    setWeights((prev) => {
+      const others = prev.filter((item) => item.id !== record.id);
+      return [...others, record].sort((a, b) => a.date.localeCompare(b.date));
+    });
+  }
+
+  async function deleteWeightForFocusedDay() {
+    const existing = weights.find((item) => item.date === focusedDate);
+    if (!existing) return;
+    await weightLogRepo.remove(existing.id);
+    setWeights((prev) => prev.filter((item) => item.id !== existing.id));
+    setWeightInput("");
+  }
+
+  async function editPastDay(archive: ClosedDayArchive) {
+    const dayLogForArchive = await dayLogRepo.getByDate(archive.date);
+    const nowTs = nowISO();
+    const reopenedLog: DayLog = dayLogForArchive
+      ? { ...dayLogForArchive, status: "active", updatedAt: nowTs }
+      : {
+          id: archive.date,
+          date: archive.date,
+          dayType: archive.dayType,
+          status: "active",
+          activeKcal: archive.activeKcal,
+          activitySource: "manual",
+          healthSyncStatus: "idle",
+          manualActivityOverride: true,
+          healthPermissionsState: "unknown",
+          createdAt: nowTs,
+          updatedAt: nowTs,
+        };
+    await dayLogRepo.upsert(reopenedLog);
+
+    const updatedArchive: ClosedDayArchive = {
+      ...archive,
+      reopenedAt: nowTs,
+      updatedAt: nowTs,
+    };
+    await closedDayArchiveRepo.upsert(updatedArchive);
+    setArchives((prev) => prev.map((item) => (item.id === updatedArchive.id ? updatedArchive : item)));
+
+    setFocusedDate(archive.date);
+    setCloseState({ status: "idle" });
+
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   function startEditingEntry(entry: MealEntry) {
@@ -382,15 +453,15 @@ export default function Home() {
     };
 
     await mealEntryRepo.upsert(updatedEntry);
-    if (todayLog?.status === "completed") {
+    if (focusedLog?.status === "completed") {
       const logUpdated = {
-        ...todayLog,
+        ...focusedLog,
         status: "active" as DayStatus,
         dayAnalysis: undefined,
         dayAnalysisAt: undefined,
         updatedAt: nowISO(),
       };
-      setTodayLog(logUpdated);
+      setFocusedLog(logUpdated);
       await dayLogRepo.upsert(logUpdated);
     }
     await refreshDayEntries(entry.dayLogId);
@@ -399,15 +470,15 @@ export default function Home() {
 
   async function deleteEntry(entry: MealEntry) {
     await mealEntryRepo.remove(entry.id);
-    if (todayLog?.status === "completed") {
+    if (focusedLog?.status === "completed") {
       const logUpdated = {
-        ...todayLog,
+        ...focusedLog,
         status: "active" as DayStatus,
         dayAnalysis: undefined,
         dayAnalysisAt: undefined,
         updatedAt: nowISO(),
       };
-      setTodayLog(logUpdated);
+      setFocusedLog(logUpdated);
       await dayLogRepo.upsert(logUpdated);
     }
     await refreshDayEntries(entry.dayLogId);
@@ -417,21 +488,21 @@ export default function Home() {
   }
 
   async function finishDay() {
-    if (!todayLog || !dayTotals) return;
+    if (!focusedLog || !dayTotals) return;
     setCloseState({ status: "saving", message: "Сохраняю snapshot дня..." });
 
     const snapshot = buildDaySnapshot({
-      dayLog: todayLog,
+      dayLog: focusedLog,
       mealEntries: entries,
       foodsById,
       recipesById,
       ingredientsByRecipeId,
       target: currentTarget,
-      weightKg: weights.find((item) => item.date === todayLog.date)?.weightKg,
+      weightKg: weights.find((item) => item.date === focusedLog.date)?.weightKg,
     });
 
     const baseAnalysis: ExtendedDayAnalysis = buildFallbackDayAnalysisExtended({
-      dayLog: todayLog,
+      dayLog: focusedLog,
       target: currentTarget,
       consumed: snapshot.consumed,
       netKcal: snapshot.netKcal,
@@ -440,9 +511,9 @@ export default function Home() {
 
     const closedAt = nowISO();
     const archive: ClosedDayArchive = {
-      id: todayLog.id,
-      date: todayLog.date,
-      dayType: todayLog.dayType,
+      id: focusedLog.id,
+      date: focusedLog.date,
+      dayType: focusedLog.dayType,
       closedAt,
       consumed: snapshot.consumed,
       netKcal: snapshot.netKcal,
@@ -450,7 +521,7 @@ export default function Home() {
       micronutrientsTotal: snapshot.micronutrientsTotal,
       vitaminsTotal: snapshot.vitaminsTotal,
       micronutrientCoverage: snapshot.micronutrientCoverage,
-      weightKg: weights.find((item) => item.date === todayLog.date)?.weightKg,
+      weightKg: weights.find((item) => item.date === focusedLog.date)?.weightKg,
       target: currentTarget
         ? {
             kcalMin: currentTarget.kcalMin,
@@ -475,7 +546,7 @@ export default function Home() {
     await closedDayArchiveRepo.upsert(archive);
 
     const updated: DayLog = {
-      ...todayLog,
+      ...focusedLog,
       status: "completed",
       dayAnalysis: {
         ...baseAnalysis,
@@ -484,7 +555,7 @@ export default function Home() {
       dayAnalysisAt: closedAt,
       updatedAt: closedAt,
     };
-    setTodayLog(updated);
+    setFocusedLog(updated);
     await dayLogRepo.upsert(updated);
     setArchives((prev) => [archive, ...prev.filter((item) => item.id !== archive.id)]);
     setCloseState({ status: "ai-loading", message: "Запрашиваю AI-анализ..." });
@@ -497,8 +568,8 @@ export default function Home() {
       }
 
       const aiResult = await requestDayAnalysis({
-        date: todayLog.date,
-        dayType: todayLog.dayType,
+        date: focusedLog.date,
+        dayType: focusedLog.dayType,
         consumed: snapshot.consumed,
         activeKcal: snapshot.activeKcal,
         netKcal: snapshot.netKcal,
@@ -553,7 +624,7 @@ export default function Home() {
           dayAnalysisAt: aiAt,
           updatedAt: aiAt,
         };
-        setTodayLog(updatedLog);
+        setFocusedLog(updatedLog);
         await dayLogRepo.upsert(updatedLog);
         setCloseState({
           status: "ai-success",
@@ -578,16 +649,16 @@ export default function Home() {
   }
 
   async function reopenDay() {
-    if (!todayLog) return;
+    if (!focusedLog) return;
     const updated: DayLog = {
-      ...todayLog,
+      ...focusedLog,
       status: "active",
       updatedAt: nowISO(),
     };
-    setTodayLog(updated);
+    setFocusedLog(updated);
     await dayLogRepo.upsert(updated);
 
-    const existingArchive = archives.find((item) => item.id === todayLog.id);
+    const existingArchive = archives.find((item) => item.id === focusedLog.id);
     if (existingArchive) {
       const reopenedAt = nowISO();
       const next: ClosedDayArchive = {
@@ -658,7 +729,7 @@ export default function Home() {
     }
   }
 
-  if (isLoading || !todayLog) {
+  if (isLoading || !focusedLog) {
     return <section className="py-4 text-sm text-[#9db0c8]">Загрузка...</section>;
   }
 
@@ -666,9 +737,21 @@ export default function Home() {
     <section className="space-y-3.5 pb-2 text-neutral-100">
       <header className="px-0.5 pt-1">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="screen-subtitle capitalize">{todayLabel}</p>
-            <h1 className="screen-title mt-1">Сегодня</h1>
+          <div className="flex items-start gap-2">
+            {!isViewingToday ? (
+              <button
+                type="button"
+                onClick={() => setFocusedDate(todayDate)}
+                className="glass-icon-btn mt-0.5"
+                aria-label="Вернуться к сегодняшнему дню"
+              >
+                <ArrowLeft size={16} />
+              </button>
+            ) : null}
+            <div>
+              <p className="screen-subtitle capitalize">{focusedLabel}</p>
+              <h1 className="screen-title mt-1">{isViewingToday ? "Сегодня" : "Редактирование дня"}</h1>
+            </div>
           </div>
           <div className="mt-0.5 flex items-center gap-1.5">
             <Link href="/settings" className="glass-icon-btn" aria-label="Настройки">
@@ -679,6 +762,11 @@ export default function Home() {
             </button>
           </div>
         </div>
+        {!isViewingToday ? (
+          <div className="mt-2 rounded-2xl border border-[rgba(132,225,75,0.22)] bg-[rgba(132,225,75,0.06)] px-3 py-2 text-[11px] text-[#a8f070]">
+            Ты редактируешь прошлый день. Изменения перезапишут архив после повторного закрытия.
+          </div>
+        ) : null}
       </header>
 
       <div className="rounded-[28px] border border-[rgba(255,255,255,0.06)] bg-[rgba(8,13,20,0.88)] p-1">
@@ -687,7 +775,7 @@ export default function Home() {
             type="button"
             onClick={() => updateDayType("normal")}
             className={`h-11 rounded-full text-sm font-semibold tracking-[0.01em] ${
-              todayLog.dayType === "normal" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
+              focusedLog.dayType === "normal" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
             }`}
           >
             Обычный
@@ -696,7 +784,7 @@ export default function Home() {
             type="button"
             onClick={() => updateDayType("strength")}
             className={`h-11 rounded-full text-sm font-semibold tracking-[0.01em] ${
-              todayLog.dayType === "strength" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
+              focusedLog.dayType === "strength" ? "accent-btn" : "pill-segment text-[#c7d4e5]"
             }`}
           >
             Силовой
@@ -711,7 +799,7 @@ export default function Home() {
               <Flame size={14} />
             </div>
             <p className="mt-1.5 text-[9px] uppercase leading-tight tracking-[0.07em] text-[#95a8bf]">Activity calories</p>
-            <p className="mt-1 text-[1.45rem] font-bold leading-none text-[#ff5e74]">{formatNumber(todayLog.activeKcal)}</p>
+            <p className="mt-1 text-[1.45rem] font-bold leading-none text-[#ff5e74]">{formatNumber(focusedLog.activeKcal)}</p>
             <p className="text-[10px] text-[#8c9eb5]">kcal</p>
           </div>
 
@@ -827,7 +915,29 @@ export default function Home() {
         <div className="mt-3 space-y-3">
           <div>
             <label htmlFor="active-kcal" className="mb-1.5 block text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Active calories</label>
-            <input id="active-kcal" type="number" min={0} value={todayLog.activeKcal} onChange={(event) => updateActiveKcal(Number(event.target.value))} className="h-12 w-full rounded-lg px-3 text-base outline-none" />
+            <input id="active-kcal" type="number" min={0} value={focusedLog.activeKcal} onChange={(event) => updateActiveKcal(Number(event.target.value))} className="h-12 w-full rounded-lg px-3 text-base outline-none" />
+          </div>
+          <div>
+            <label htmlFor="day-weight" className="mb-1.5 block text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Вес утром, кг</label>
+            <div className="flex gap-2">
+              <input
+                id="day-weight"
+                type="text"
+                inputMode="decimal"
+                value={weightInput}
+                onChange={(event) => setWeightInput(event.target.value)}
+                placeholder="напр. 82.4"
+                className="h-12 w-full rounded-lg px-3 text-base outline-none"
+              />
+              <button type="button" onClick={saveWeightForFocusedDay} className="h-12 rounded-lg accent-btn px-3 text-xs font-semibold">
+                Сохранить
+              </button>
+              {weights.some((item) => item.date === focusedDate) ? (
+                <button type="button" onClick={deleteWeightForFocusedDay} className="icon-action-btn danger-btn" aria-label="Удалить вес за день">
+                  <Trash2 size={14} />
+                </button>
+              ) : null}
+            </div>
           </div>
           <div>
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9db0c8]">Микро и витамины</p>
@@ -850,9 +960,11 @@ export default function Home() {
       <div className="app-card space-y-3 px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Завершение дня</p>
+            <p className="text-xs uppercase tracking-[0.11em] text-[#9db0c8]">
+              {isViewingToday ? "Завершение дня" : `Редактирование · ${focusedDate}`}
+            </p>
             <p className="mt-1 text-[15px] font-semibold tracking-[-0.01em] text-[#f6fbff]">
-              {todayLog.status === "completed" ? "День закрыт" : "День открыт"}
+              {focusedLog.status === "completed" ? "День закрыт" : isViewingToday ? "День открыт" : "Редактируется"}
             </p>
           </div>
           <Sparkles size={18} className="text-[#8fff70]" />
@@ -870,7 +982,15 @@ export default function Home() {
             disabled={closeState.status === "saving" || closeState.status === "ai-loading"}
             className="h-11 rounded-lg accent-btn text-sm font-semibold disabled:opacity-40"
           >
-            {closeState.status === "ai-loading" ? "AI думает..." : closeState.status === "saving" ? "Сохраняю..." : todayLog.status === "completed" ? "Пересохранить день" : "Закончить день"}
+            {closeState.status === "ai-loading"
+              ? "AI думает..."
+              : closeState.status === "saving"
+                ? "Сохраняю..."
+                : focusedLog.status === "completed"
+                  ? "Пересохранить день"
+                  : isViewingToday
+                    ? "Закончить день"
+                    : "Сохранить и закрыть"}
           </button>
           <button type="button" onClick={reopenDay} className="h-11 rounded-lg bg-[#0d1520] text-sm font-semibold text-[#c7d4e5]">
             Открыть снова
@@ -878,8 +998,12 @@ export default function Home() {
         </div>
       </div>
 
-      {todayLog.status === "completed" && todayLog.dayAnalysis ? (
-        <DayAnalysisCard analysis={todayLog.dayAnalysis} dateLabel="Сегодня" generatedAt={todayLog.dayAnalysisAt} />
+      {focusedLog.status === "completed" && focusedLog.dayAnalysis ? (
+        <DayAnalysisCard
+          analysis={focusedLog.dayAnalysis}
+          dateLabel={isViewingToday ? "Сегодня" : focusedDate}
+          generatedAt={focusedLog.dayAnalysisAt}
+        />
       ) : null}
 
       {archives.length > 0 ? (
@@ -892,8 +1016,10 @@ export default function Home() {
               <ArchiveDayCard
                 key={archive.id}
                 archive={archive}
+                isActive={archive.date === focusedDate && !isViewingToday}
                 onDelete={() => deleteArchive(archive.id)}
                 onRerunAi={() => rerunAiAnalysisForArchive(archive)}
+                onEdit={() => editPastDay(archive)}
               />
             ))}
           </div>
@@ -961,15 +1087,19 @@ function BulletList({ title, items, tone }: { title: string; items: string[]; to
 
 function ArchiveDayCard({
   archive,
+  isActive,
   onDelete,
   onRerunAi,
+  onEdit,
 }: {
   archive: ClosedDayArchive;
+  isActive?: boolean;
   onDelete: () => void;
   onRerunAi: () => void;
+  onEdit: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(11,17,28,0.85)] p-3">
+    <div className={`rounded-2xl border ${isActive ? "border-[rgba(132,225,75,0.45)] bg-[rgba(132,225,75,0.06)]" : "border-[rgba(255,255,255,0.06)] bg-[rgba(11,17,28,0.85)]"} p-3`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[13px] font-semibold text-[#f5f9ff]">{archive.date}</p>
@@ -1011,6 +1141,13 @@ function ArchiveDayCard({
         </details>
       ) : null}
       <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className={`h-8 flex-1 rounded-lg text-[11px] font-semibold ${isActive ? "accent-btn" : "bg-[#0d1520] text-[#8fff70]"}`}
+        >
+          {isActive ? "Редактируется" : "Редактировать"}
+        </button>
         <button type="button" onClick={onRerunAi} className="h-8 flex-1 rounded-lg secondary-btn text-[11px] font-semibold">
           Перезапросить AI
         </button>
