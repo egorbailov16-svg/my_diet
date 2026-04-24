@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { callGemini, safeParseJson } from "@/lib/ai/gemini-client";
+import { callGemini, DEFAULT_MODEL, safeParseJson } from "@/lib/ai/gemini-client";
 import type { AnalyzeRationInput, RationAdvice } from "@/lib/ai/analysis-types";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
+const ROUTE_MODEL = DEFAULT_MODEL;
 
 type IncomingPayload = AnalyzeRationInput;
 
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
 
   const result = await callGemini({
     prompt: buildPrompt(payload),
+    model: ROUTE_MODEL,
     responseMimeType: "application/json",
     temperature: 0.35,
     maxOutputTokens: 900,
@@ -64,6 +66,7 @@ export async function POST(request: Request) {
         error: result.errorMessage ?? "AI provider failed",
         provider: result.providerId,
         model: result.usedModel,
+        routeModel: ROUTE_MODEL,
       },
       { status: 502, headers: { "Cache-Control": "no-store" } },
     );
@@ -77,6 +80,7 @@ export async function POST(request: Request) {
         error: "AI response was not valid JSON",
         provider: result.providerId,
         model: result.usedModel,
+        routeModel: ROUTE_MODEL,
       },
       { status: 502, headers: { "Cache-Control": "no-store" } },
     );
@@ -111,6 +115,7 @@ export async function POST(request: Request) {
       analysis: normalized,
       provider: result.providerId,
       model: result.usedModel,
+      routeModel: ROUTE_MODEL,
     },
     { status: 200, headers: { "Cache-Control": "no-store" } },
   );

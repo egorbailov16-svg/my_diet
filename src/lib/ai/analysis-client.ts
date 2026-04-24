@@ -14,8 +14,16 @@ const REQUEST_TIMEOUT_MS = 35000;
 
 type ApiOk<T> = { ok: true; analysis: T; provider: string; model: string };
 type ApiErr = { ok: false; error: string };
+const inFlightRequests = new Map<string, Promise<unknown>>();
 
 async function postJson<T>(url: string, body: unknown): Promise<T | ApiErr> {
+  const key = `${url}::${JSON.stringify(body)}`;
+  const existing = inFlightRequests.get(key);
+  if (existing) {
+    return existing as Promise<T | ApiErr>;
+  }
+
+  const requestPromise = (async (): Promise<T | ApiErr> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -39,10 +47,17 @@ async function postJson<T>(url: string, body: unknown): Promise<T | ApiErr> {
     }
     return json as T;
   } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { ok: false, error: "AI не ответил вовремя. Попробуй снова через минуту." };
+    }
     return { ok: false, error: error instanceof Error ? error.message : "AI request failed" };
   } finally {
     clearTimeout(timer);
+    inFlightRequests.delete(key);
   }
+  })();
+  inFlightRequests.set(key, requestPromise as Promise<unknown>);
+  return requestPromise;
 }
 
 export async function requestDayAnalysis(payload: AnalyzeDayInput): Promise<{

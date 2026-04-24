@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { callGemini, safeParseJson } from "@/lib/ai/gemini-client";
+import { callGemini, DEFAULT_MODEL, safeParseJson } from "@/lib/ai/gemini-client";
 import { buildFallbackDayAnalysisExtended } from "@/lib/ai/structured-analysis";
 import type { DayLog, DayTarget } from "@/lib/data";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
+const ROUTE_MODEL = DEFAULT_MODEL;
 
 type IncomingPayload = {
   date: string;
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
 
   const result = await callGemini({
     prompt: buildPrompt(payload),
+    model: ROUTE_MODEL,
     responseMimeType: "application/json",
     temperature: 0.4,
     maxOutputTokens: 900,
@@ -134,6 +136,7 @@ export async function POST(request: Request) {
         analysis: fallbackAnalysis,
         provider: "rule-based-fallback",
         model: "local-structured-v1",
+        routeModel: ROUTE_MODEL,
         fallbackReason: result.errorMessage ?? "AI provider failed",
       },
       { status: 200, headers: { "Cache-Control": "no-store" } },
@@ -148,6 +151,7 @@ export async function POST(request: Request) {
         analysis: fallbackAnalysis,
         provider: "rule-based-fallback",
         model: "local-structured-v1",
+        routeModel: ROUTE_MODEL,
         fallbackReason: "AI response was not valid JSON",
       },
       { status: 200, headers: { "Cache-Control": "no-store" } },
@@ -170,6 +174,7 @@ export async function POST(request: Request) {
       analysis,
       provider: result.providerId,
       model: result.usedModel,
+      routeModel: ROUTE_MODEL,
     },
     { status: 200, headers: { "Cache-Control": "no-store" } },
   );

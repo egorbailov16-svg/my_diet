@@ -28,7 +28,7 @@ import type { AnalyzeRationInput, ExtendedDayAnalysis, RationAdvice } from "@/li
 import { FoodThumbnail } from "@/components/food-thumbnail";
 import { ArrowLeft, CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Sparkles, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -131,6 +131,8 @@ export default function Home() {
     model?: string;
     message?: string;
   }>({ status: "idle" });
+  const closeRequestInFlightRef = useRef(false);
+  const rationRequestInFlightRef = useRef(false);
 
   const todayDate = useMemo(() => todayISODate(), []);
   const focusedLabel = useMemo(() => formatTodayDateLabel(focusedDate), [focusedDate]);
@@ -509,20 +511,21 @@ export default function Home() {
   }
 
   async function finishDay() {
-    if (!focusedLog || !dayTotals) return;
+    if (!focusedLog || !dayTotals || closeRequestInFlightRef.current) return;
+    closeRequestInFlightRef.current = true;
     setCloseState({ status: "saving", message: "Сохраняю snapshot дня..." });
+    try {
+      const snapshot = buildDaySnapshot({
+        dayLog: focusedLog,
+        mealEntries: entries,
+        foodsById,
+        recipesById,
+        ingredientsByRecipeId,
+        target: currentTarget,
+        weightKg: weights.find((item) => item.date === focusedLog.date)?.weightKg,
+      });
 
-    const snapshot = buildDaySnapshot({
-      dayLog: focusedLog,
-      mealEntries: entries,
-      foodsById,
-      recipesById,
-      ingredientsByRecipeId,
-      target: currentTarget,
-      weightKg: weights.find((item) => item.date === focusedLog.date)?.weightKg,
-    });
-
-    const baseAnalysis: ExtendedDayAnalysis = buildFallbackDayAnalysisExtended({
+      const baseAnalysis: ExtendedDayAnalysis = buildFallbackDayAnalysisExtended({
       dayLog: focusedLog,
       target: currentTarget,
       consumed: snapshot.consumed,
@@ -530,8 +533,8 @@ export default function Home() {
       micronutrientCoverage: snapshot.micronutrientCoverage,
     });
 
-    const closedAt = nowISO();
-    const archive: ClosedDayArchive = {
+      const closedAt = nowISO();
+      const archive: ClosedDayArchive = {
       id: focusedLog.id,
       date: focusedLog.date,
       dayType: focusedLog.dayType,
@@ -564,9 +567,9 @@ export default function Home() {
       updatedAt: closedAt,
     };
 
-    await closedDayArchiveRepo.upsert(archive);
+      await closedDayArchiveRepo.upsert(archive);
 
-    const updated: DayLog = {
+      const updated: DayLog = {
       ...focusedLog,
       status: "completed",
       dayAnalysis: {
@@ -576,19 +579,19 @@ export default function Home() {
       dayAnalysisAt: closedAt,
       updatedAt: closedAt,
     };
-    setFocusedLog(updated);
-    await dayLogRepo.upsert(updated);
-    setArchives((prev) => [archive, ...prev.filter((item) => item.id !== archive.id)]);
-    setCloseState({ status: "ai-loading", message: "Запрашиваю AI-анализ..." });
+      setFocusedLog(updated);
+      await dayLogRepo.upsert(updated);
+      setArchives((prev) => [archive, ...prev.filter((item) => item.id !== archive.id)]);
+      setCloseState({ status: "ai-loading", message: "Запрашиваю AI-анализ..." });
 
-    try {
+      try {
       const microNorms: Record<string, number> = {};
       for (const key of Object.keys({ ...snapshot.micronutrientsTotal, ...snapshot.vitaminsTotal })) {
         const norm = DAILY_MICRO_NORMS[normalizeNutrientNormKey(key)];
         if (norm) microNorms[key] = norm;
       }
 
-      const aiResult = await requestDayAnalysis({
+        const aiResult = await requestDayAnalysis({
         date: focusedLog.date,
         dayType: focusedLog.dayType,
         consumed: snapshot.consumed,
@@ -618,7 +621,7 @@ export default function Home() {
         weightKg: archive.weightKg ?? null,
       });
 
-      if (aiResult.ok && aiResult.analysis) {
+        if (aiResult.ok && aiResult.analysis) {
         const aiAt = nowISO();
         const updatedArchive: ClosedDayArchive = {
           ...archive,
@@ -653,19 +656,22 @@ export default function Home() {
           provider: aiResult.provider,
           model: aiResult.model,
         });
-      } else {
+        } else {
+          setCloseState({
+            status: "ai-fallback",
+            message: aiResult.error
+              ? `AI недоступен (${aiResult.error}). Используется локальный анализ.`
+              : "AI недоступен. Используется локальный анализ.",
+          });
+        }
+      } catch (error) {
         setCloseState({
           status: "ai-fallback",
-          message: aiResult.error
-            ? `AI недоступен (${aiResult.error}). Используется локальный анализ.`
-            : "AI недоступен. Используется локальный анализ.",
+          message: `AI недоступен (${error instanceof Error ? error.message : "ошибка сети"}). Используется локальный анализ.`,
         });
       }
-    } catch (error) {
-      setCloseState({
-        status: "ai-fallback",
-        message: `AI недоступен (${error instanceof Error ? error.message : "ошибка сети"}). Используется локальный анализ.`,
-      });
+    } finally {
+      closeRequestInFlightRef.current = false;
     }
   }
 
@@ -751,7 +757,8 @@ export default function Home() {
   }
 
   async function suggestRation() {
-    if (!dayTotals || !currentTarget || !remainingForAdvice) return;
+    if (!dayTotals || !currentTarget || !remainingForAdvice || rationRequestInFlightRef.current) return;
+    rationRequestInFlightRef.current = true;
     setRationAdviceState({ status: "loading", message: "AI подбирает, что лучше съесть сегодня..." });
     try {
       const candidateFoods: AnalyzeRationInput["candidates"] = foods.slice(0, 40).map((food) => ({
@@ -807,6 +814,8 @@ export default function Home() {
         status: "error",
         message: error instanceof Error ? error.message : "Ошибка подбора рациона",
       });
+    } finally {
+      rationRequestInFlightRef.current = false;
     }
   }
 

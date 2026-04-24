@@ -17,7 +17,7 @@ import { createSpeechProvider } from "@/lib/speech";
 import type { DayLog, ExternalFoodSearchResult, Food, MealEntry, ParsedQuickEntryItem, RecentItem, Recipe, RecipeIngredient } from "@/lib/data";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type EntryType = "food" | "recipe";
 type VoiceState = "idle" | "listening" | "processing" | "parsed" | "error" | "unavailable";
@@ -133,6 +133,7 @@ export default function AddEntryPage() {
   const [voiceText, setVoiceText] = useState("");
   const [voiceError, setVoiceError] = useState("");
   const [isResolvingExternal, setIsResolvingExternal] = useState(false);
+  const parseDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -365,6 +366,7 @@ export default function AddEntryPage() {
   }
 
   async function parseQuickTextToDraft(inputText?: string) {
+    if (isResolvingExternal) return;
     const parsedItems = parseQuickEntryText(inputText ?? quickInput);
     if (parsedItems.length === 0) {
       setQuickDraft([]);
@@ -373,37 +375,52 @@ export default function AddEntryPage() {
     }
 
     setIsResolvingExternal(true);
-    const nextFoods = [...foods];
-    const draft = [];
-    for (const parsed of parsedItems) {
-      let match = pickBestDraftMatch(parsed);
-      if (!match.sourceId) {
-        try {
-          const externalMatch = await importBestExternalCandidate(parsed);
-          if (externalMatch) {
-            const refreshedFoods = await foodRepo.list();
-            nextFoods.splice(0, nextFoods.length, ...refreshedFoods);
-            match = { sourceType: "food", sourceId: externalMatch.sourceId, confidence: Math.max(0.6, externalMatch.confidence) };
+    try {
+      const nextFoods = [...foods];
+      const draft = [];
+      for (const parsed of parsedItems) {
+        let match = pickBestDraftMatch(parsed);
+        if (!match.sourceId) {
+          try {
+            const externalMatch = await importBestExternalCandidate(parsed);
+            if (externalMatch) {
+              const refreshedFoods = await foodRepo.list();
+              nextFoods.splice(0, nextFoods.length, ...refreshedFoods);
+              match = { sourceType: "food", sourceId: externalMatch.sourceId, confidence: Math.max(0.6, externalMatch.confidence) };
+            }
+          } catch (error) {
+            console.error("Auto-import external candidate failed", error);
           }
-        } catch (error) {
-          console.error("Auto-import external candidate failed", error);
         }
+
+        draft.push({
+          id: makeDraftId("draft"),
+          parsed,
+          sourceType: match.sourceType,
+          sourceId: match.sourceId,
+          weightInput: String(defaultWeightFromParsed(parsed)),
+          confidence: match.confidence,
+        });
       }
 
-      draft.push({
-        id: makeDraftId("draft"),
-        parsed,
-        sourceType: match.sourceType,
-        sourceId: match.sourceId,
-        weightInput: String(defaultWeightFromParsed(parsed)),
-        confidence: match.confidence,
-      });
+      setFoods(nextFoods.sort((a, b) => a.name.localeCompare(b.name, "ru")));
+      setQuickDraft(draft);
+      setQuickMessage("Черновик собран. Неизвестные продукты автоматически подтянуты из внешней базы, если найдены.");
+    } finally {
+      setIsResolvingExternal(false);
     }
+  }
 
-    setFoods(nextFoods.sort((a, b) => a.name.localeCompare(b.name, "ru")));
-    setQuickDraft(draft);
-    setQuickMessage("Черновик собран. Неизвестные продукты автоматически подтянуты из внешней базы, если найдены.");
-    setIsResolvingExternal(false);
+  function parseQuickTextToDraftDebounced(inputText?: string) {
+    if (parseDebounceRef.current) {
+      window.clearTimeout(parseDebounceRef.current);
+    }
+    parseDebounceRef.current = window.setTimeout(() => {
+      parseQuickTextToDraft(inputText).catch((error) => {
+        console.error("Failed to parse quick draft", error);
+        setQuickMessage("Ошибка разбора текста. Попробуй еще раз.");
+      });
+    }, 300);
   }
 
   async function saveQuickDraft() {
@@ -516,6 +533,14 @@ export default function AddEntryPage() {
       setQuickMessage("Ошибка голосового ввода. Попробуй еще раз.");
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (parseDebounceRef.current) {
+        window.clearTimeout(parseDebounceRef.current);
+      }
+    };
+  }, []);
 
   async function saveEntry() {
     const weightG = convertAmountToGrams({
@@ -630,7 +655,12 @@ export default function AddEntryPage() {
           placeholder="Пример: 60 г овсянки + 30 г протеина"
           className="min-h-24 w-full rounded-2xl  px-3 py-2 text-base outline-none"
         />
-        <button type="button" onClick={() => parseQuickTextToDraft()} className="h-11 w-full rounded-2xl secondary-btn text-sm font-semibold">
+        <button
+          type="button"
+          onClick={() => parseQuickTextToDraftDebounced()}
+          disabled={isResolvingExternal}
+          className="h-11 w-full rounded-2xl secondary-btn text-sm font-semibold disabled:opacity-40"
+        >
           {isResolvingExternal ? "Подбираю продукты..." : "Разобрать в draft"}
         </button>
 

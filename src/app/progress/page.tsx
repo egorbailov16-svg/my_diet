@@ -19,7 +19,7 @@ import type { DayLog, Food, MealEntry, Recipe, RecipeIngredient, WeightLog } fro
 import { buildFallbackPeriodAnalysisExtended, buildPeriodAnalysis, requestPeriodAnalysis } from "@/lib/ai";
 import type { ExtendedPeriodAnalysis } from "@/lib/ai";
 import { Pencil, Sparkles, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -67,6 +67,7 @@ export default function ProgressPage() {
     provider?: string;
     model?: string;
   }>({ status: "idle" });
+  const periodAiInFlightRef = useRef(false);
 
   const today = useMemo(() => todayISODate(), []);
 
@@ -305,6 +306,8 @@ export default function ProgressPage() {
   }
 
   async function runPeriodAiAnalysis() {
+    if (periodAiInFlightRef.current) return;
+    periodAiInFlightRef.current = true;
     const startDate = new Date(periodDates.start).toISOString().slice(0, 10);
     const endDate = new Date(periodDates.end).toISOString().slice(0, 10);
     const sortedWeights = [...weightLogs].sort((a, b) => a.date.localeCompare(b.date));
@@ -374,6 +377,8 @@ export default function ProgressPage() {
     } catch (error) {
       setAiAnalysis(fallback);
       setAiState({ status: "fallback", message: error instanceof Error ? error.message : "Ошибка сети" });
+    } finally {
+      periodAiInFlightRef.current = false;
     }
   }
 

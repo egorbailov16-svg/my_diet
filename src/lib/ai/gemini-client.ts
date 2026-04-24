@@ -1,5 +1,5 @@
-const DEFAULT_MODEL = "gemini-2.0-flash";
-const FALLBACK_MODELS = ["gemini-2.0-flash-lite", "gemini-1.5-flash-latest"] as const;
+const DEFAULT_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODELS = ["gemini-2.5-flash-lite"] as const;
 
 export type GeminiCallOptions = {
   prompt: string;
@@ -36,6 +36,9 @@ function normalizeGeminiError(status: number, detail: string): string {
   const compact = detail.replace(/\s+/g, " ").trim();
   if (status === 429) {
     return "Квота Gemini временно исчерпана. Подожди немного или проверь лимиты API-ключа в Google AI Studio.";
+  }
+  if (status === 404) {
+    return "Выбранная модель Gemini недоступна для текущего API. Проверь конфигурацию модели.";
   }
   if (status === 401 || status === 403) {
     return "Нет доступа к Gemini API. Проверь корректность и права API-ключа.";
@@ -130,6 +133,8 @@ export async function callGemini(options: GeminiCallOptions): Promise<GeminiCall
     providerId: "google-gemini",
   };
 }
+
+export { DEFAULT_MODEL, FALLBACK_MODELS };
 
 export function safeParseJson<T>(text: string): T | null {
   if (!text) return null;
