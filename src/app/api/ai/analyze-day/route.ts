@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { callGemini, safeParseJson } from "@/lib/ai/gemini-client";
+import { buildFallbackDayAnalysisExtended } from "@/lib/ai/structured-analysis";
+import type { DayLog, DayTarget } from "@/lib/data";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
@@ -91,15 +93,50 @@ export async function POST(request: Request) {
     maxOutputTokens: 900,
   });
 
+  const fallbackDayType = payload.dayType === "strength" ? "strength" : "normal";
+  const fallbackAnalysis = buildFallbackDayAnalysisExtended({
+    dayLog: {
+      id: payload.date,
+      date: payload.date,
+      dayType: fallbackDayType,
+      status: "completed",
+      activeKcal: Number(payload.activeKcal) || 0,
+      activitySource: "manual",
+      healthSyncStatus: "idle",
+      manualActivityOverride: true,
+      healthPermissionsState: "unknown",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as DayLog,
+    target: payload.target
+      ? ({
+          id: fallbackDayType,
+          dayType: fallbackDayType,
+          kcalMin: payload.target.kcalMin,
+          kcalMax: payload.target.kcalMax,
+          proteinTarget: payload.target.proteinTarget,
+          fatMin: payload.target.fatMin,
+          fatMax: payload.target.fatMax,
+          carbsMin: payload.target.carbsMin,
+          carbsMax: payload.target.carbsMax,
+          updatedAt: new Date().toISOString(),
+        } as DayTarget)
+      : null,
+    consumed: payload.consumed,
+    netKcal: payload.netKcal,
+    micronutrientCoverage: payload.micronutrientCoverage ?? 0,
+  });
+
   if (!result.ok || !result.text) {
     return NextResponse.json(
       {
-        ok: false,
-        error: result.errorMessage ?? "AI provider failed",
-        provider: result.providerId,
-        model: result.usedModel,
+        ok: true,
+        analysis: fallbackAnalysis,
+        provider: "rule-based-fallback",
+        model: "local-structured-v1",
+        fallbackReason: result.errorMessage ?? "AI provider failed",
       },
-      { status: 502 },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   }
 
@@ -107,13 +144,13 @@ export async function POST(request: Request) {
   if (!parsed) {
     return NextResponse.json(
       {
-        ok: false,
-        error: "AI response was not valid JSON",
-        rawText: result.text,
-        provider: result.providerId,
-        model: result.usedModel,
+        ok: true,
+        analysis: fallbackAnalysis,
+        provider: "rule-based-fallback",
+        model: "local-structured-v1",
+        fallbackReason: "AI response was not valid JSON",
       },
-      { status: 502 },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   }
 

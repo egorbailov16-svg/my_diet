@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { callGemini, safeParseJson } from "@/lib/ai/gemini-client";
+import { buildFallbackPeriodAnalysisExtended } from "@/lib/ai/structured-analysis";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
@@ -111,15 +112,34 @@ export async function POST(request: Request) {
     maxOutputTokens: 1800,
   });
 
+  const fallbackAnalysis = buildFallbackPeriodAnalysisExtended({
+    rangeDays: [7, 14, 21, 30, 60].includes(payload.rangeDays) ? (payload.rangeDays as 7 | 14 | 21 | 30 | 60) : 7,
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    avgWeight: payload.weightEndKg ?? payload.weightStartKg ?? 0,
+    deltaWeight: payload.weightDeltaKg,
+    avgKcal: payload.avgConsumed.kcal,
+    avgProtein: payload.avgConsumed.protein,
+    avgFat: payload.avgConsumed.fat,
+    avgCarbs: payload.avgConsumed.carbs,
+    avgActivity: payload.avgActivity,
+    avgNetKcal: payload.avgNetKcal,
+    completedDays: payload.completedDays,
+    totalDays: payload.totalDays,
+    planHitRate: payload.planHitRate,
+    micronutrientCoverage: payload.micronutrientCoverage,
+  });
+
   if (!result.ok || !result.text) {
     return NextResponse.json(
       {
-        ok: false,
-        error: result.errorMessage ?? "AI provider failed",
-        provider: result.providerId,
-        model: result.usedModel,
+        ok: true,
+        analysis: fallbackAnalysis,
+        provider: "rule-based-fallback",
+        model: "local-structured-v1",
+        fallbackReason: result.errorMessage ?? "AI provider failed",
       },
-      { status: 502 },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   }
 
@@ -127,13 +147,13 @@ export async function POST(request: Request) {
   if (!parsed) {
     return NextResponse.json(
       {
-        ok: false,
-        error: "AI response was not valid JSON",
-        rawText: result.text,
-        provider: result.providerId,
-        model: result.usedModel,
+        ok: true,
+        analysis: fallbackAnalysis,
+        provider: "rule-based-fallback",
+        model: "local-structured-v1",
+        fallbackReason: "AI response was not valid JSON",
       },
-      { status: 502 },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   }
 
