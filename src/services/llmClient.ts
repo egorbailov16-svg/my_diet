@@ -16,6 +16,7 @@ export type LlmStreamChunk = {
 export type LlmGenerateOptions = {
   maxTokens?: number;
   timeoutMs?: number;
+  thinking?: boolean;
 };
 
 export class LlmClientError extends Error {
@@ -40,7 +41,7 @@ function createClient(): OpenAI {
   return new OpenAI({
     apiKey: getApiKey(),
     baseURL: NVIDIA_BASE_URL,
-    timeout: 25000,
+    timeout: 12000,
   });
 }
 
@@ -75,8 +76,9 @@ function asText(value: unknown): string {
 export async function* generateResponse(messages: LlmMessage[], options?: LlmGenerateOptions): AsyncGenerator<LlmStreamChunk> {
   const client = createClient();
   const startedAt = Date.now();
-  const timeoutMs = Math.max(5000, options?.timeoutMs ?? 25000);
+  const timeoutMs = Math.max(5000, options?.timeoutMs ?? 12000);
   const maxTokens = Math.max(256, options?.maxTokens ?? 8192);
+  const thinking = options?.thinking ?? true;
   try {
     const requestBody: Record<string, unknown> = {
       model: NVIDIA_MODEL,
@@ -87,7 +89,7 @@ export async function* generateResponse(messages: LlmMessage[], options?: LlmGen
       max_tokens: maxTokens,
       extra_body: {
         chat_template_kwargs: {
-          thinking: true,
+          thinking,
         },
       },
     };
@@ -110,6 +112,16 @@ export async function* generateResponse(messages: LlmMessage[], options?: LlmGen
   }
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new LlmClientError("Таймаут LLM-запроса. Попробуй еще раз.")), timeoutMs);
+    promise
+      .then((value) => resolve(value))
+      .catch((error) => reject(error))
+      .finally(() => clearTimeout(timer));
+  });
+}
+
 export async function collectResponse(messages: LlmMessage[], options?: LlmGenerateOptions): Promise<{
   contentText: string;
   reasoningText: string;
@@ -119,10 +131,13 @@ export async function collectResponse(messages: LlmMessage[], options?: LlmGener
 }> {
   let contentText = "";
   let reasoningText = "";
-  for await (const chunk of generateResponse(messages, options)) {
-    if (chunk.content) contentText += chunk.content;
-    if (chunk.reasoningContent) reasoningText += chunk.reasoningContent;
-  }
+  const consume = async () => {
+    for await (const chunk of generateResponse(messages, options)) {
+      if (chunk.content) contentText += chunk.content;
+      if (chunk.reasoningContent) reasoningText += chunk.reasoningContent;
+    }
+  };
+  await withTimeout(consume(), Math.max(5000, options?.timeoutMs ?? 12000));
   const mergedText = contentText.trim().length > 0 ? contentText : reasoningText;
   return {
     contentText,

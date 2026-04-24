@@ -128,7 +128,7 @@ export async function POST(request: Request) {
   let provider: "nvidia-deepseek" = "nvidia-deepseek";
   let usedModel = ROUTE_MODEL;
   try {
-    const response = await collectResponse([{ role: "user", content: buildPrompt(payload) }], { maxTokens: 2200, timeoutMs: 26000 });
+    const response = await collectResponse([{ role: "user", content: buildPrompt(payload) }], { maxTokens: 1200, timeoutMs: 10000, thinking: false });
     llmText = response.mergedText;
     usedModel = response.model;
     provider = response.provider;

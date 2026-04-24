@@ -127,7 +127,7 @@ export async function POST(request: Request) {
   try {
     const response = await collectResponse([
       { role: "user", content: buildPrompt(payload) },
-    ], { maxTokens: 1400, timeoutMs: 22000 });
+    ], { maxTokens: 900, timeoutMs: 9000, thinking: false });
     llmText = response.mergedText;
     usedModel = response.model;
     provider = response.provider;
