@@ -1,4 +1,5 @@
 const DEFAULT_MODEL = "gemini-2.0-flash";
+const FALLBACK_MODELS = ["gemini-2.0-flash-lite", "gemini-1.5-flash-latest"] as const;
 
 export type GeminiCallOptions = {
   prompt: string;
@@ -31,14 +32,33 @@ function buildEndpoint(model: string, key: string): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
 }
 
+function normalizeGeminiError(status: number, detail: string): string {
+  const compact = detail.replace(/\s+/g, " ").trim();
+  if (status === 429) {
+    return "Квота Gemini временно исчерпана. Подожди немного или проверь лимиты API-ключа в Google AI Studio.";
+  }
+  if (status === 401 || status === 403) {
+    return "Нет доступа к Gemini API. Проверь корректность и права API-ключа.";
+  }
+  if (status >= 500) {
+    return "Gemini временно недоступен (ошибка сервера). Попробуй снова чуть позже.";
+  }
+  return `Gemini ${status}: ${compact.slice(0, 180)}`;
+}
+
+function dedupeModels(primary: string): string[] {
+  const all = [primary, ...FALLBACK_MODELS];
+  return [...new Set(all)];
+}
+
 export async function callGemini(options: GeminiCallOptions): Promise<GeminiCallResult> {
   const apiKey = pickApiKey(options.apiKey);
-  const model = options.model?.trim() || DEFAULT_MODEL;
+  const primaryModel = options.model?.trim() || DEFAULT_MODEL;
   if (!apiKey) {
     return {
       ok: false,
       errorMessage: "GEMINI_API_KEY is not configured",
-      usedModel: model,
+      usedModel: primaryModel,
       providerId: "google-gemini",
     };
   }
@@ -57,58 +77,58 @@ export async function callGemini(options: GeminiCallOptions): Promise<GeminiCall
     },
   };
 
-  try {
-    const response = await fetch(buildEndpoint(model, apiKey), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  let lastErrorMessage = "Gemini request failed";
+  let lastModel = primaryModel;
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
+  for (const model of dedupeModels(primaryModel)) {
+    lastModel = model;
+    try {
+      const response = await fetch(buildEndpoint(model, apiKey), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        lastErrorMessage = normalizeGeminiError(response.status, detail);
+        continue;
+      }
+
+      const data = (await response.json()) as {
+        candidates?: Array<{
+          content?: { parts?: Array<{ text?: string }> };
+          finishReason?: string;
+        }>;
+      };
+
+      const text = data.candidates?.[0]?.content?.parts
+        ?.map((part) => part?.text ?? "")
+        .join("")
+        .trim();
+
+      if (!text) {
+        lastErrorMessage = "Gemini вернул пустой ответ.";
+        continue;
+      }
+
       return {
-        ok: false,
-        errorMessage: `Gemini ${response.status}: ${detail.slice(0, 200)}`,
+        ok: true,
+        text,
         usedModel: model,
         providerId: "google-gemini",
       };
+    } catch (error) {
+      lastErrorMessage = error instanceof Error ? error.message : "Gemini request failed";
     }
-
-    const data = (await response.json()) as {
-      candidates?: Array<{
-        content?: { parts?: Array<{ text?: string }> };
-        finishReason?: string;
-      }>;
-    };
-
-    const text = data.candidates?.[0]?.content?.parts
-      ?.map((part) => part?.text ?? "")
-      .join("")
-      .trim();
-
-    if (!text) {
-      return {
-        ok: false,
-        errorMessage: "Gemini returned empty response",
-        usedModel: model,
-        providerId: "google-gemini",
-      };
-    }
-
-    return {
-      ok: true,
-      text,
-      usedModel: model,
-      providerId: "google-gemini",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      errorMessage: error instanceof Error ? error.message : "Gemini request failed",
-      usedModel: model,
-      providerId: "google-gemini",
-    };
   }
+
+  return {
+    ok: false,
+    errorMessage: lastErrorMessage,
+    usedModel: lastModel,
+    providerId: "google-gemini",
+  };
 }
 
 export function safeParseJson<T>(text: string): T | null {
