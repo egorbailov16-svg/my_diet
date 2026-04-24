@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { collectResponse, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
+import { collectResponseWithFallback, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
 import { buildFallbackDayAnalysisExtended } from "@/lib/ai/structured-analysis";
 import type { DayLog, DayTarget } from "@/lib/data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 const ROUTE_MODEL = NVIDIA_MODEL;
 
 type IncomingPayload = {
@@ -122,12 +123,12 @@ export async function POST(request: Request) {
   });
 
   let llmText = "";
-  let provider: "nvidia-deepseek" = "nvidia-deepseek";
+  let provider: string = "nvidia";
   let usedModel = ROUTE_MODEL;
   try {
-    const response = await collectResponse([
+    const response = await collectResponseWithFallback([
       { role: "user", content: buildPrompt(payload) },
-    ], { maxTokens: 900, timeoutMs: 9000, thinking: false });
+    ], { maxTokens: 900, timeoutMs: 45000, temperature: 0.3 });
     llmText = response.mergedText;
     usedModel = response.model;
     provider = response.provider;

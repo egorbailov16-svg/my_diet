@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { collectResponse, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
+import { collectResponseWithFallback, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
 import type { AnalyzeRationInput, RationAdvice } from "@/lib/ai/analysis-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 const ROUTE_MODEL = NVIDIA_MODEL;
 
 type IncomingPayload = AnalyzeRationInput;
@@ -52,10 +53,10 @@ export async function POST(request: Request) {
   }
 
   let llmText = "";
-  let provider: "nvidia-deepseek" = "nvidia-deepseek";
+  let provider: string = "nvidia";
   let usedModel = ROUTE_MODEL;
   try {
-    const response = await collectResponse([{ role: "user", content: buildPrompt(payload) }], { maxTokens: 600, timeoutMs: 8000, thinking: false });
+    const response = await collectResponseWithFallback([{ role: "user", content: buildPrompt(payload) }], { maxTokens: 700, timeoutMs: 40000, temperature: 0.4 });
     llmText = response.mergedText;
     usedModel = response.model;
     provider = response.provider;
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: message,
-        provider: "nvidia-deepseek",
+        provider: "nvidia",
         model: ROUTE_MODEL,
         routeModel: ROUTE_MODEL,
       },

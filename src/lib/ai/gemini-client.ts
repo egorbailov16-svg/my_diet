@@ -12,7 +12,7 @@ export type GeminiCallResult = {
   text?: string;
   errorMessage?: string;
   usedModel: string;
-  providerId: "nvidia-deepseek";
+  providerId: "nvidia";
 };
 
 export async function callGemini(options: GeminiCallOptions): Promise<GeminiCallResult> {
@@ -22,14 +22,14 @@ export async function callGemini(options: GeminiCallOptions): Promise<GeminiCall
       ok: true,
       text: response.mergedText,
       usedModel: response.model,
-      providerId: "nvidia-deepseek",
+      providerId: "nvidia",
     };
   } catch (error) {
     return {
       ok: false,
       errorMessage: error instanceof Error ? error.message : "LLM request failed",
       usedModel: DEFAULT_MODEL,
-      providerId: "nvidia-deepseek",
+      providerId: "nvidia",
     };
   }
 }

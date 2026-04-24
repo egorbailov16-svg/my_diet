@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-export const NVIDIA_MODEL = "deepseek-ai/deepseek-v3.2";
+export const NVIDIA_MODEL = "meta/llama-3.3-70b-instruct";
+export const NVIDIA_FAST_MODEL = "meta/llama-3.1-8b-instruct";
 
 export type LlmMessage = {
   role: "system" | "user" | "assistant";
@@ -17,6 +18,9 @@ export type LlmGenerateOptions = {
   maxTokens?: number;
   timeoutMs?: number;
   thinking?: boolean;
+  model?: string;
+  temperature?: number;
+  topP?: number;
 };
 
 export class LlmClientError extends Error {
@@ -37,11 +41,12 @@ function getApiKey(): string {
   return key;
 }
 
-function createClient(): OpenAI {
+function createClient(timeout: number): OpenAI {
   return new OpenAI({
     apiKey: getApiKey(),
     baseURL: NVIDIA_BASE_URL,
-    timeout: 12000,
+    timeout,
+    maxRetries: 0,
   });
 }
 
@@ -50,6 +55,12 @@ function normalizeError(error: unknown): LlmClientError {
   const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: number }).status) : undefined;
   if (status === 401) {
     return new LlmClientError("Неверный ключ NVIDIA API (401).", status);
+  }
+  if (status === 403) {
+    return new LlmClientError("Нет доступа к модели NVIDIA (403). Проверь ключ.", status);
+  }
+  if (status === 404) {
+    return new LlmClientError("Модель NVIDIA не найдена (404).", status);
   }
   if (status === 429) {
     return new LlmClientError("Превышен лимит NVIDIA API (429). Подожди немного и повтори.", status);
@@ -60,39 +71,55 @@ function normalizeError(error: unknown): LlmClientError {
   if (status && status >= 500) {
     return new LlmClientError("NVIDIA API временно недоступен. Попробуй позже.", status);
   }
-  return new LlmClientError(error instanceof Error ? error.message : "LLM request failed", status);
+  const message = error instanceof Error ? error.message : "LLM request failed";
+  if (/abort/i.test(message) || /timeout/i.test(message)) {
+    return new LlmClientError("Таймаут LLM-запроса. Попробуй еще раз.", status);
+  }
+  return new LlmClientError(message, status);
 }
 
 function asText(value: unknown): string {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
     return value
-      .map((part) => (typeof part === "string" ? part : typeof part === "object" && part && "text" in part ? String((part as { text?: unknown }).text ?? "") : ""))
+      .map((part) =>
+        typeof part === "string"
+          ? part
+          : typeof part === "object" && part && "text" in part
+            ? String((part as { text?: unknown }).text ?? "")
+            : "",
+      )
       .join("");
   }
   return "";
 }
 
+function supportsThinking(model: string): boolean {
+  return /deepseek-v3\.2|nemotron.*think/i.test(model);
+}
+
 export async function* generateResponse(messages: LlmMessage[], options?: LlmGenerateOptions): AsyncGenerator<LlmStreamChunk> {
-  const client = createClient();
+  const timeoutMs = Math.max(5000, options?.timeoutMs ?? 50000);
+  const maxTokens = Math.max(64, options?.maxTokens ?? 1024);
+  const model = options?.model ?? NVIDIA_MODEL;
+  const temperature = options?.temperature ?? 0.3;
+  const topP = options?.topP ?? 0.95;
+  const client = createClient(timeoutMs);
   const startedAt = Date.now();
-  const timeoutMs = Math.max(5000, options?.timeoutMs ?? 12000);
-  const maxTokens = Math.max(256, options?.maxTokens ?? 8192);
-  const thinking = options?.thinking ?? true;
+
   try {
     const requestBody: Record<string, unknown> = {
-      model: NVIDIA_MODEL,
+      model,
       messages,
       stream: true,
-      temperature: 1,
-      top_p: 0.95,
+      temperature,
+      top_p: topP,
       max_tokens: maxTokens,
-      extra_body: {
-        chat_template_kwargs: {
-          thinking,
-        },
-      },
     };
+    if (options?.thinking && supportsThinking(model)) {
+      requestBody.extra_body = { chat_template_kwargs: { thinking: true } };
+    }
+
     const stream = (await (client.chat.completions.create as unknown as (body: unknown) => Promise<AsyncIterable<unknown>>)(
       requestBody,
     )) as AsyncIterable<unknown>;
@@ -127,7 +154,7 @@ export async function collectResponse(messages: LlmMessage[], options?: LlmGener
   reasoningText: string;
   mergedText: string;
   model: string;
-  provider: "nvidia-deepseek";
+  provider: "nvidia";
 }> {
   let contentText = "";
   let reasoningText = "";
@@ -137,15 +164,41 @@ export async function collectResponse(messages: LlmMessage[], options?: LlmGener
       if (chunk.reasoningContent) reasoningText += chunk.reasoningContent;
     }
   };
-  await withTimeout(consume(), Math.max(5000, options?.timeoutMs ?? 12000));
+  await withTimeout(consume(), Math.max(5000, options?.timeoutMs ?? 50000));
   const mergedText = contentText.trim().length > 0 ? contentText : reasoningText;
   return {
     contentText,
     reasoningText,
     mergedText,
-    model: NVIDIA_MODEL,
-    provider: "nvidia-deepseek",
+    model: options?.model ?? NVIDIA_MODEL,
+    provider: "nvidia",
   };
+}
+
+export async function collectResponseWithFallback(
+  messages: LlmMessage[],
+  options?: LlmGenerateOptions,
+): Promise<{
+  contentText: string;
+  reasoningText: string;
+  mergedText: string;
+  model: string;
+  provider: "nvidia";
+}> {
+  try {
+    return await collectResponse(messages, options);
+  } catch (primaryError) {
+    const primaryModel = options?.model ?? NVIDIA_MODEL;
+    if (primaryModel === NVIDIA_FAST_MODEL) throw primaryError;
+    console.warn(
+      `LLM primary model failed (${primaryModel}): ${primaryError instanceof Error ? primaryError.message : "unknown"}. Retrying with ${NVIDIA_FAST_MODEL}.`,
+    );
+    return await collectResponse(messages, {
+      ...options,
+      model: NVIDIA_FAST_MODEL,
+      timeoutMs: Math.min(options?.timeoutMs ?? 50000, 25000),
+    });
+  }
 }
 
 export function safeParseJson<T>(text: string): T | null {

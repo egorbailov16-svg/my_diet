@@ -10,7 +10,7 @@ import type {
 const ANALYZE_DAY_ENDPOINT = "/api/ai/analyze-day";
 const ANALYZE_PERIOD_ENDPOINT = "/api/ai/analyze-period";
 const ANALYZE_RATION_ENDPOINT = "/api/ai/suggest-ration";
-const REQUEST_TIMEOUT_MS = 35000;
+const REQUEST_TIMEOUT_MS = 65000;
 
 type ApiOk<T> = { ok: true; analysis: T; provider: string; model: string };
 type ApiErr = { ok: false; error: string };
