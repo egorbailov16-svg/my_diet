@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { callGemini, DEFAULT_MODEL, safeParseJson } from "@/lib/ai/gemini-client";
+import { collectResponse, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
 import { buildFallbackDayAnalysisExtended } from "@/lib/ai/structured-analysis";
 import type { DayLog, DayTarget } from "@/lib/data";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
-const ROUTE_MODEL = DEFAULT_MODEL;
+const ROUTE_MODEL = NVIDIA_MODEL;
 
 type IncomingPayload = {
   date: string;
@@ -87,14 +87,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const result = await callGemini({
-    prompt: buildPrompt(payload),
-    model: ROUTE_MODEL,
-    responseMimeType: "application/json",
-    temperature: 0.4,
-    maxOutputTokens: 900,
-  });
-
   const fallbackDayType = payload.dayType === "strength" ? "strength" : "normal";
   const fallbackAnalysis = buildFallbackDayAnalysisExtended({
     dayLog: {
@@ -129,7 +121,19 @@ export async function POST(request: Request) {
     micronutrientCoverage: payload.micronutrientCoverage ?? 0,
   });
 
-  if (!result.ok || !result.text) {
+  let llmText = "";
+  let provider: "nvidia-deepseek" = "nvidia-deepseek";
+  let usedModel = ROUTE_MODEL;
+  try {
+    const response = await collectResponse([
+      { role: "user", content: buildPrompt(payload) },
+    ]);
+    llmText = response.mergedText;
+    usedModel = response.model;
+    provider = response.provider;
+  } catch (error) {
+    console.error("analyze-day LLM error", error instanceof Error ? error.message : "unknown");
+    const message = error instanceof LlmClientError ? error.message : "AI provider failed";
     return NextResponse.json(
       {
         ok: true,
@@ -137,13 +141,13 @@ export async function POST(request: Request) {
         provider: "rule-based-fallback",
         model: "local-structured-v1",
         routeModel: ROUTE_MODEL,
-        fallbackReason: result.errorMessage ?? "AI provider failed",
+        fallbackReason: message,
       },
       { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   }
 
-  const parsed = safeParseJson<AnalysisResponse>(result.text);
+  const parsed = safeParseJson<AnalysisResponse>(llmText);
   if (!parsed) {
     return NextResponse.json(
       {
@@ -172,8 +176,8 @@ export async function POST(request: Request) {
     {
       ok: true,
       analysis,
-      provider: result.providerId,
-      model: result.usedModel,
+      provider,
+      model: usedModel,
       routeModel: ROUTE_MODEL,
     },
     { status: 200, headers: { "Cache-Control": "no-store" } },

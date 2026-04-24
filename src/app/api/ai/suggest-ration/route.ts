@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { callGemini, DEFAULT_MODEL, safeParseJson } from "@/lib/ai/gemini-client";
+import { collectResponse, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
 import type { AnalyzeRationInput, RationAdvice } from "@/lib/ai/analysis-types";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
-const ROUTE_MODEL = DEFAULT_MODEL;
+const ROUTE_MODEL = NVIDIA_MODEL;
 
 type IncomingPayload = AnalyzeRationInput;
 
@@ -51,35 +51,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const result = await callGemini({
-    prompt: buildPrompt(payload),
-    model: ROUTE_MODEL,
-    responseMimeType: "application/json",
-    temperature: 0.35,
-    maxOutputTokens: 900,
-  });
-
-  if (!result.ok || !result.text) {
+  let llmText = "";
+  let provider: "nvidia-deepseek" = "nvidia-deepseek";
+  let usedModel = ROUTE_MODEL;
+  try {
+    const response = await collectResponse([{ role: "user", content: buildPrompt(payload) }]);
+    llmText = response.mergedText;
+    usedModel = response.model;
+    provider = response.provider;
+  } catch (error) {
+    console.error("suggest-ration LLM error", error instanceof Error ? error.message : "unknown");
+    const message = error instanceof LlmClientError ? error.message : "AI provider failed";
     return NextResponse.json(
       {
         ok: false,
-        error: result.errorMessage ?? "AI provider failed",
-        provider: result.providerId,
-        model: result.usedModel,
+        error: message,
+        provider: "nvidia-deepseek",
+        model: ROUTE_MODEL,
         routeModel: ROUTE_MODEL,
       },
       { status: 502, headers: { "Cache-Control": "no-store" } },
     );
   }
 
-  const parsed = safeParseJson<RationAdvice>(result.text);
+  const parsed = safeParseJson<RationAdvice>(llmText);
   if (!parsed || !Array.isArray(parsed.suggestions)) {
     return NextResponse.json(
       {
         ok: false,
         error: "AI response was not valid JSON",
-        provider: result.providerId,
-        model: result.usedModel,
+        provider,
+        model: usedModel,
         routeModel: ROUTE_MODEL,
       },
       { status: 502, headers: { "Cache-Control": "no-store" } },
@@ -113,8 +115,8 @@ export async function POST(request: Request) {
     {
       ok: true,
       analysis: normalized,
-      provider: result.providerId,
-      model: result.usedModel,
+      provider,
+      model: usedModel,
       routeModel: ROUTE_MODEL,
     },
     { status: 200, headers: { "Cache-Control": "no-store" } },
