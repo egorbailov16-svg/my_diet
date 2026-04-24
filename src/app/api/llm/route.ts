@@ -1,6 +1,6 @@
 import { generateResponse, LlmClientError, type LlmMessage, NVIDIA_MODEL } from "@/services/llmClient";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type IncomingPayload = {

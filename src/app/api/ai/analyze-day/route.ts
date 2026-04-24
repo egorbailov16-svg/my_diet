@@ -3,7 +3,7 @@ import { collectResponse, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/
 import { buildFallbackDayAnalysisExtended } from "@/lib/ai/structured-analysis";
 import type { DayLog, DayTarget } from "@/lib/data";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const ROUTE_MODEL = NVIDIA_MODEL;
 

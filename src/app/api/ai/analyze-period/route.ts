@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { collectResponse, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
 import { buildFallbackPeriodAnalysisExtended } from "@/lib/ai/structured-analysis";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const ROUTE_MODEL = NVIDIA_MODEL;
 

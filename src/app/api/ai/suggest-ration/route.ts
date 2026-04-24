@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { collectResponse, LlmClientError, NVIDIA_MODEL, safeParseJson } from "@/services/llmClient";
 import type { AnalyzeRationInput, RationAdvice } from "@/lib/ai/analysis-types";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const ROUTE_MODEL = NVIDIA_MODEL;
 
