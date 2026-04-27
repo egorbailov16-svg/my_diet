@@ -3,6 +3,7 @@
 import { dayTargetRepo, profileRepo } from "@/lib/data";
 import { isAdminUnlocked, setAdminUnlocked, validateAdminCredentials } from "@/lib/admin/local-admin";
 import type { DayTarget, Profile } from "@/lib/data";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type ProfileForm = {
@@ -226,6 +227,12 @@ export default function SettingsPage() {
 
         <div className="app-card p-4">
           <p className="mb-3 section-label">Администратор</p>
+          <p className="mb-2 text-xs text-[#9db0c8]">
+            Вход в аккаунт теперь на отдельной странице.
+            <Link href="/account" className="ml-1 text-[#8fff70] underline underline-offset-2">
+              Открыть Аккаунт
+            </Link>
+          </p>
           {adminUnlocked ? (
             <div className="space-y-2">
               <p className="text-sm text-[#b8c7da]">Режим администратора активен на этом устройстве.</p>

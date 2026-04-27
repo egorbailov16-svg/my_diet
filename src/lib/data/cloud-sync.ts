@@ -1,5 +1,6 @@
 import { deleteById, getAll, openAppDB, putMany, putOne } from "@/lib/data/db";
 import type {
+  ClosedDayArchive,
   DayLog,
   DayTarget,
   Food,
@@ -9,6 +10,7 @@ import type {
   RecipeIngredient,
   WeightLog,
 } from "@/lib/data/types";
+import { getActiveAccountId } from "@/lib/account/local-account";
 
 const SYNC_ENDPOINT = "/api/sync";
 const SYNC_COOLDOWN_MS = 2500;
@@ -16,34 +18,58 @@ const PUSH_DEBOUNCE_MS = 500;
 
 type CloudDoc = {
   syncedAt: string;
-  foods: Food[];
-  recipes: Recipe[];
-  recipeIngredients: RecipeIngredient[];
-  mealEntries: MealEntry[];
-  dayLogs: DayLog[];
-  dayTargets: DayTarget[];
-  weightLogs: WeightLog[];
-  profile: Profile | null;
+  shared: {
+    foods: Food[];
+    recipes: Recipe[];
+    recipeIngredients: RecipeIngredient[];
+    deleted?: Partial<Record<SharedStoreName, Record<string, string>>>;
+  };
+  users: Record<
+    string,
+    {
+      mealEntries: MealEntry[];
+      dayLogs: DayLog[];
+      dayTargets: DayTarget[];
+      weightLogs: WeightLog[];
+      profile: Profile | null;
+      closedDayArchives: ClosedDayArchive[];
+      deleted?: Partial<Record<UserStoreName, Record<string, string>>>;
+    }
+  >;
+  // legacy fields kept for migration from older docs
+  foods?: Food[];
+  recipes?: Recipe[];
+  recipeIngredients?: RecipeIngredient[];
+  mealEntries?: MealEntry[];
+  dayLogs?: DayLog[];
+  dayTargets?: DayTarget[];
+  weightLogs?: WeightLog[];
+  profile?: Profile | null;
   deleted?: Partial<Record<SyncStoreName, Record<string, string>>>;
 };
 
 type IdRecord = { id: string; updatedAt: string };
-type SyncStoreName = "foods" | "recipes" | "recipeIngredients" | "mealEntries" | "dayLogs" | "dayTargets" | "weightLogs";
+type SharedStoreName = "foods" | "recipes" | "recipeIngredients";
+type UserStoreName =
+  | "mealEntries"
+  | "dayLogs"
+  | "dayTargets"
+  | "weightLogs"
+  | "closedDayArchives";
+type SyncStoreName = SharedStoreName | UserStoreName;
 type DeletedMap = Partial<Record<SyncStoreName, Record<string, string>>>;
 const LOCAL_DELETED_KEY = "my-diet-sync-deleted-v1";
 const DELETED_TTL_MS = 45 * 24 * 60 * 60 * 1000;
 
 const EMPTY_DOC: CloudDoc = {
   syncedAt: "1970-01-01T00:00:00.000Z",
-  foods: [],
-  recipes: [],
-  recipeIngredients: [],
-  mealEntries: [],
-  dayLogs: [],
-  dayTargets: [],
-  weightLogs: [],
-  profile: null,
-  deleted: {},
+  shared: {
+    foods: [],
+    recipes: [],
+    recipeIngredients: [],
+    deleted: {},
+  },
+  users: {},
 };
 
 function isBrowser() {
@@ -90,19 +116,66 @@ async function pushCloudDoc(doc: CloudDoc): Promise<boolean> {
 
 function normalizeDoc(raw: Partial<CloudDoc> | null): CloudDoc {
   if (!raw || typeof raw !== "object") return { ...EMPTY_DOC };
+  const hasModernShape = raw.shared && typeof raw.shared === "object";
+  if (!hasModernShape) {
+    const legacyDeleted = raw.deleted && typeof raw.deleted === "object" ? (raw.deleted as DeletedMap) : {};
+    const legacyUser = "admin";
+    return {
+      syncedAt: typeof raw.syncedAt === "string" ? raw.syncedAt : EMPTY_DOC.syncedAt,
+      shared: {
+        foods: Array.isArray(raw.foods) ? (raw.foods as Food[]) : [],
+        recipes: Array.isArray(raw.recipes) ? (raw.recipes as Recipe[]) : [],
+        recipeIngredients: Array.isArray(raw.recipeIngredients) ? (raw.recipeIngredients as RecipeIngredient[]) : [],
+        deleted: {
+          foods: legacyDeleted.foods,
+          recipes: legacyDeleted.recipes,
+          recipeIngredients: legacyDeleted.recipeIngredients,
+        },
+      },
+      users: {
+        [legacyUser]: {
+          mealEntries: Array.isArray(raw.mealEntries) ? (raw.mealEntries as MealEntry[]) : [],
+          dayLogs: Array.isArray(raw.dayLogs) ? (raw.dayLogs as DayLog[]) : [],
+          dayTargets: Array.isArray(raw.dayTargets) ? (raw.dayTargets as DayTarget[]) : [],
+          weightLogs: Array.isArray(raw.weightLogs) ? (raw.weightLogs as WeightLog[]) : [],
+          profile: raw.profile && typeof raw.profile === "object" ? (raw.profile as Profile) : null,
+          closedDayArchives: [],
+          deleted: {
+            mealEntries: legacyDeleted.mealEntries,
+            dayLogs: legacyDeleted.dayLogs,
+            dayTargets: legacyDeleted.dayTargets,
+            weightLogs: legacyDeleted.weightLogs,
+          },
+        },
+      },
+    };
+  }
+
+  const normalizedShared = raw.shared as CloudDoc["shared"];
+  const rawUsers = raw.users && typeof raw.users === "object" ? (raw.users as CloudDoc["users"]) : {};
+  const users: CloudDoc["users"] = {};
+  for (const [userId, bucket] of Object.entries(rawUsers)) {
+    if (!bucket || typeof bucket !== "object") continue;
+    users[userId] = {
+      mealEntries: Array.isArray(bucket.mealEntries) ? bucket.mealEntries : [],
+      dayLogs: Array.isArray(bucket.dayLogs) ? bucket.dayLogs : [],
+      dayTargets: Array.isArray(bucket.dayTargets) ? bucket.dayTargets : [],
+      weightLogs: Array.isArray(bucket.weightLogs) ? bucket.weightLogs : [],
+      profile: bucket.profile && typeof bucket.profile === "object" ? bucket.profile : null,
+      closedDayArchives: Array.isArray(bucket.closedDayArchives) ? bucket.closedDayArchives : [],
+      deleted: bucket.deleted && typeof bucket.deleted === "object" ? bucket.deleted : {},
+    };
+  }
+
   return {
     syncedAt: typeof raw.syncedAt === "string" ? raw.syncedAt : EMPTY_DOC.syncedAt,
-    foods: Array.isArray(raw.foods) ? (raw.foods as Food[]) : [],
-    recipes: Array.isArray(raw.recipes) ? (raw.recipes as Recipe[]) : [],
-    recipeIngredients: Array.isArray(raw.recipeIngredients)
-      ? (raw.recipeIngredients as RecipeIngredient[])
-      : [],
-    mealEntries: Array.isArray(raw.mealEntries) ? (raw.mealEntries as MealEntry[]) : [],
-    dayLogs: Array.isArray(raw.dayLogs) ? (raw.dayLogs as DayLog[]) : [],
-    dayTargets: Array.isArray(raw.dayTargets) ? (raw.dayTargets as DayTarget[]) : [],
-    weightLogs: Array.isArray(raw.weightLogs) ? (raw.weightLogs as WeightLog[]) : [],
-    profile: raw.profile && typeof raw.profile === "object" ? (raw.profile as Profile) : null,
-    deleted: raw.deleted && typeof raw.deleted === "object" ? (raw.deleted as DeletedMap) : {},
+    shared: {
+      foods: Array.isArray(normalizedShared.foods) ? normalizedShared.foods : [],
+      recipes: Array.isArray(normalizedShared.recipes) ? normalizedShared.recipes : [],
+      recipeIngredients: Array.isArray(normalizedShared.recipeIngredients) ? normalizedShared.recipeIngredients : [],
+      deleted: normalizedShared.deleted && typeof normalizedShared.deleted === "object" ? normalizedShared.deleted : {},
+    },
+    users,
   };
 }
 
@@ -233,7 +306,14 @@ function mergeProfile(local: Profile | undefined, remote: Profile | null): Profi
 }
 
 async function replaceStoreContents<T extends IdRecord>(
-  storeName: "foods" | "recipes" | "recipeIngredients" | "mealEntries" | "dayLogs" | "weightLogs",
+  storeName:
+    | "foods"
+    | "recipes"
+    | "recipeIngredients"
+    | "mealEntries"
+    | "dayLogs"
+    | "weightLogs"
+    | "closedDayArchives",
   localItems: T[],
   mergedItems: T[],
 ): Promise<void> {
@@ -281,9 +361,31 @@ async function runFullSync(): Promise<CloudDoc | null> {
 
   const remote = await pullCloudDoc();
   const remoteDoc = remote ?? { ...EMPTY_DOC };
+  const accountId = getActiveAccountId();
   const remoteSyncedAtMs = parseTs(remoteDoc.syncedAt);
   const localDeleted = readLocalDeletedMap();
-  let mergedDeleted = pruneDeletedMap(mergeDeletedMaps(remoteDoc.deleted ?? {}, localDeleted));
+  const remoteSharedDeleted: DeletedMap = {
+    foods: remoteDoc.shared.deleted?.foods ?? {},
+    recipes: remoteDoc.shared.deleted?.recipes ?? {},
+    recipeIngredients: remoteDoc.shared.deleted?.recipeIngredients ?? {},
+  };
+  const remoteUserDeleted: DeletedMap = remoteDoc.users[accountId]?.deleted ?? {};
+  let mergedSharedDeleted = pruneDeletedMap(
+    mergeDeletedMaps(remoteSharedDeleted, {
+      foods: localDeleted.foods,
+      recipes: localDeleted.recipes,
+      recipeIngredients: localDeleted.recipeIngredients,
+    }),
+  );
+  let mergedUserDeleted = pruneDeletedMap(
+    mergeDeletedMaps(remoteUserDeleted, {
+      mealEntries: localDeleted.mealEntries,
+      dayLogs: localDeleted.dayLogs,
+      dayTargets: localDeleted.dayTargets,
+      weightLogs: localDeleted.weightLogs,
+      closedDayArchives: localDeleted.closedDayArchives,
+    }),
+  );
 
   const [
     localFoods,
@@ -293,6 +395,7 @@ async function runFullSync(): Promise<CloudDoc | null> {
     localDayLogs,
     localDayTargets,
     localWeightLogs,
+    localClosedDayArchives,
     localProfileArr,
   ] = await Promise.all([
     getAll("foods"),
@@ -302,37 +405,46 @@ async function runFullSync(): Promise<CloudDoc | null> {
     getAll("dayLogs"),
     getAll("dayTargets"),
     getAll("weightLogs"),
+    getAll("closedDayArchives"),
     getAll("profile"),
   ]);
   const localProfile = localProfileArr[0];
+  const remoteUser = remoteDoc.users[accountId] ?? {
+    mealEntries: [],
+    dayLogs: [],
+    dayTargets: [],
+    weightLogs: [],
+    profile: null,
+    closedDayArchives: [],
+    deleted: {},
+  };
 
-  const mergedFoods = mergeById(localFoods, remoteDoc.foods, remoteSyncedAtMs);
-  const mergedRecipes = mergeById(localRecipes, remoteDoc.recipes, remoteSyncedAtMs);
-  const mergedRecipeIngredients = mergeById(
-    localRecipeIngredients,
-    remoteDoc.recipeIngredients,
-    remoteSyncedAtMs,
-  );
-  const mergedMealEntries = mergeById(localMealEntries, remoteDoc.mealEntries, remoteSyncedAtMs);
-  const mergedDayLogs = mergeById(localDayLogs, remoteDoc.dayLogs, remoteSyncedAtMs);
-  const mergedDayTargets = mergeById(localDayTargets, remoteDoc.dayTargets, remoteSyncedAtMs);
-  const mergedWeightLogs = mergeById(localWeightLogs, remoteDoc.weightLogs, remoteSyncedAtMs);
-  const mergedProfile = mergeProfile(localProfile, remoteDoc.profile);
+  const mergedFoods = mergeById(localFoods, remoteDoc.shared.foods, remoteSyncedAtMs);
+  const mergedRecipes = mergeById(localRecipes, remoteDoc.shared.recipes, remoteSyncedAtMs);
+  const mergedRecipeIngredients = mergeById(localRecipeIngredients, remoteDoc.shared.recipeIngredients, remoteSyncedAtMs);
+  const mergedMealEntries = mergeById(localMealEntries, remoteUser.mealEntries, remoteSyncedAtMs);
+  const mergedDayLogs = mergeById(localDayLogs, remoteUser.dayLogs, remoteSyncedAtMs);
+  const mergedDayTargets = mergeById(localDayTargets, remoteUser.dayTargets, remoteSyncedAtMs);
+  const mergedWeightLogs = mergeById(localWeightLogs, remoteUser.weightLogs, remoteSyncedAtMs);
+  const mergedClosedDayArchives = mergeById(localClosedDayArchives, remoteUser.closedDayArchives, remoteSyncedAtMs);
+  const mergedProfile = mergeProfile(localProfile, remoteUser.profile);
 
-  const foodsWithDeleteApplied = applyDeletedForStore("foods", mergedFoods, mergedDeleted);
-  mergedDeleted = foodsWithDeleteApplied.deleted;
-  const recipesWithDeleteApplied = applyDeletedForStore("recipes", mergedRecipes, mergedDeleted);
-  mergedDeleted = recipesWithDeleteApplied.deleted;
-  const recipeIngredientsWithDeleteApplied = applyDeletedForStore("recipeIngredients", mergedRecipeIngredients, mergedDeleted);
-  mergedDeleted = recipeIngredientsWithDeleteApplied.deleted;
-  const mealEntriesWithDeleteApplied = applyDeletedForStore("mealEntries", mergedMealEntries, mergedDeleted);
-  mergedDeleted = mealEntriesWithDeleteApplied.deleted;
-  const dayLogsWithDeleteApplied = applyDeletedForStore("dayLogs", mergedDayLogs, mergedDeleted);
-  mergedDeleted = dayLogsWithDeleteApplied.deleted;
-  const dayTargetsWithDeleteApplied = applyDeletedForStore("dayTargets", mergedDayTargets, mergedDeleted);
-  mergedDeleted = dayTargetsWithDeleteApplied.deleted;
-  const weightLogsWithDeleteApplied = applyDeletedForStore("weightLogs", mergedWeightLogs, mergedDeleted);
-  mergedDeleted = weightLogsWithDeleteApplied.deleted;
+  const foodsWithDeleteApplied = applyDeletedForStore("foods", mergedFoods, mergedSharedDeleted);
+  mergedSharedDeleted = foodsWithDeleteApplied.deleted;
+  const recipesWithDeleteApplied = applyDeletedForStore("recipes", mergedRecipes, mergedSharedDeleted);
+  mergedSharedDeleted = recipesWithDeleteApplied.deleted;
+  const recipeIngredientsWithDeleteApplied = applyDeletedForStore("recipeIngredients", mergedRecipeIngredients, mergedSharedDeleted);
+  mergedSharedDeleted = recipeIngredientsWithDeleteApplied.deleted;
+  const mealEntriesWithDeleteApplied = applyDeletedForStore("mealEntries", mergedMealEntries, mergedUserDeleted);
+  mergedUserDeleted = mealEntriesWithDeleteApplied.deleted;
+  const dayLogsWithDeleteApplied = applyDeletedForStore("dayLogs", mergedDayLogs, mergedUserDeleted);
+  mergedUserDeleted = dayLogsWithDeleteApplied.deleted;
+  const dayTargetsWithDeleteApplied = applyDeletedForStore("dayTargets", mergedDayTargets, mergedUserDeleted);
+  mergedUserDeleted = dayTargetsWithDeleteApplied.deleted;
+  const weightLogsWithDeleteApplied = applyDeletedForStore("weightLogs", mergedWeightLogs, mergedUserDeleted);
+  mergedUserDeleted = weightLogsWithDeleteApplied.deleted;
+  const closedDayArchivesWithDeleteApplied = applyDeletedForStore("closedDayArchives", mergedClosedDayArchives, mergedUserDeleted);
+  mergedUserDeleted = closedDayArchivesWithDeleteApplied.deleted;
 
   await Promise.all([
     replaceStoreContents("foods", localFoods, foodsWithDeleteApplied.items),
@@ -341,6 +453,7 @@ async function runFullSync(): Promise<CloudDoc | null> {
     replaceStoreContents("mealEntries", localMealEntries, mealEntriesWithDeleteApplied.items),
     replaceStoreContents("dayLogs", localDayLogs, dayLogsWithDeleteApplied.items),
     replaceStoreContents("weightLogs", localWeightLogs, weightLogsWithDeleteApplied.items),
+    replaceStoreContents("closedDayArchives", localClosedDayArchives, closedDayArchivesWithDeleteApplied.items),
     replaceDayTargets(localDayTargets, dayTargetsWithDeleteApplied.items),
     replaceProfile(localProfile, mergedProfile),
   ]);
@@ -348,22 +461,38 @@ async function runFullSync(): Promise<CloudDoc | null> {
   const now = new Date().toISOString();
   const outDoc: CloudDoc = {
     syncedAt: now,
-    foods: foodsWithDeleteApplied.items,
-    recipes: recipesWithDeleteApplied.items,
-    recipeIngredients: recipeIngredientsWithDeleteApplied.items,
-    mealEntries: mealEntriesWithDeleteApplied.items,
-    dayLogs: dayLogsWithDeleteApplied.items,
-    dayTargets: dayTargetsWithDeleteApplied.items,
-    weightLogs: weightLogsWithDeleteApplied.items,
-    profile: mergedProfile,
-    deleted: mergedDeleted,
+    shared: {
+      foods: foodsWithDeleteApplied.items,
+      recipes: recipesWithDeleteApplied.items,
+      recipeIngredients: recipeIngredientsWithDeleteApplied.items,
+      deleted: {
+        foods: mergedSharedDeleted.foods,
+        recipes: mergedSharedDeleted.recipes,
+        recipeIngredients: mergedSharedDeleted.recipeIngredients,
+      },
+    },
+    users: {
+      ...remoteDoc.users,
+      [accountId]: {
+        mealEntries: mealEntriesWithDeleteApplied.items,
+        dayLogs: dayLogsWithDeleteApplied.items,
+        dayTargets: dayTargetsWithDeleteApplied.items,
+        weightLogs: weightLogsWithDeleteApplied.items,
+        profile: mergedProfile,
+        closedDayArchives: closedDayArchivesWithDeleteApplied.items,
+        deleted: mergedUserDeleted,
+      },
+    },
   };
 
   const pushed = await pushCloudDoc(outDoc);
   if (pushed) {
     writeLocalDeletedMap({});
   } else {
-    writeLocalDeletedMap(mergedDeleted);
+    writeLocalDeletedMap({
+      ...mergedSharedDeleted,
+      ...mergedUserDeleted,
+    });
   }
   return outDoc;
 }

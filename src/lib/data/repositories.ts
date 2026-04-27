@@ -141,19 +141,32 @@ export const weightLogRepo = {
 };
 
 export const recentItemRepo = {
-  list: () => getAll("recentItems"),
-  upsert: (entry: RecentItem) => putOne("recentItems", entry),
+  list: () => withFreshSync(() => getAll("recentItems")),
+  upsert: async (entry: RecentItem) => {
+    await putOne("recentItems", entry);
+    scheduleCloudPush();
+  },
 };
 
 export const periodAnalysisRepo = {
-  list: () => getAll("periodAnalyses"),
-  getById: (id: string) => getById("periodAnalyses", id),
-  upsert: (entry: PeriodAnalysis) => putOne("periodAnalyses", entry),
+  list: () => withFreshSync(() => getAll("periodAnalyses")),
+  getById: (id: string) => withFreshSync(() => getById("periodAnalyses", id)),
+  upsert: async (entry: PeriodAnalysis) => {
+    await putOne("periodAnalyses", entry);
+    scheduleCloudPush();
+  },
 };
 
 export const closedDayArchiveRepo = {
-  list: () => getAll("closedDayArchives"),
-  getById: (id: string) => getById("closedDayArchives", id),
-  upsert: (entry: ClosedDayArchive) => putOne("closedDayArchives", entry),
-  remove: (id: string) => deleteById("closedDayArchives", id),
+  list: () => withFreshSync(() => getAll("closedDayArchives")),
+  getById: (id: string) => withFreshSync(() => getById("closedDayArchives", id)),
+  upsert: async (entry: ClosedDayArchive) => {
+    await putOne("closedDayArchives", entry);
+    scheduleCloudPush();
+  },
+  remove: async (id: string) => {
+    await deleteById("closedDayArchives", id);
+    markDeletedInSync("closedDayArchives", id);
+    scheduleCloudPush();
+  },
 };

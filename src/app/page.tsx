@@ -26,7 +26,7 @@ import type { DayLog, DayTarget, Food, MealEntry, NutrientsTotal, Recipe, Recipe
 import { buildFallbackDayAnalysisExtended, requestDayAnalysis, requestRationAdvice } from "@/lib/ai";
 import type { AnalyzeRationInput, ExtendedDayAnalysis, RationAdvice } from "@/lib/ai";
 import { FoodThumbnail } from "@/components/food-thumbnail";
-import { ArrowLeft, CalendarDays, ChevronRight, Flame, MoreHorizontal, Pencil, Sparkles, Target, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Flame, Pencil, Sparkles, Target, Trash2, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -865,9 +865,9 @@ export default function Home() {
             <Link href="/settings" className="glass-icon-btn" aria-label="Настройки">
               <CalendarDays size={16} />
             </Link>
-            <button type="button" className="glass-icon-btn" aria-label="Дополнительно">
-              <MoreHorizontal size={16} />
-            </button>
+            <Link href="/account" className="glass-icon-btn" aria-label="Аккаунт">
+              <User size={16} />
+            </Link>
           </div>
         </div>
         {!isViewingToday ? (
