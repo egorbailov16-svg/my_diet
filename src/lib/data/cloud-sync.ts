@@ -271,22 +271,17 @@ function applyDeletedForStore<T extends IdRecord>(
   return { items: filtered, deleted: nextDeleted };
 }
 
-const CLOCK_SKEW_MS = 5 * 60 * 1000;
-
-function mergeById<T extends IdRecord>(local: T[], remote: T[], remoteSyncedAtMs: number): T[] {
+function mergeById<T extends IdRecord>(local: T[], remote: T[], _remoteSyncedAtMs: number): T[] {
   const byId = new Map<string, T>();
   for (const item of remote) {
     byId.set(item.id, item);
   }
-  const deletionThreshold = remoteSyncedAtMs - CLOCK_SKEW_MS;
   for (const item of local) {
     const remoteItem = byId.get(item.id);
     if (!remoteItem) {
-      // only local — keep it if local change happened recently enough to still be un-pushed
-      if (parseTs(item.updatedAt) > deletionThreshold) {
-        byId.set(item.id, item);
-      }
-      // otherwise: remote was updated long after local item was touched -> assume deleted elsewhere
+      // Keep local-only records; explicit deletions are handled via tombstones.
+      // This prevents accidental loss of products/recipes when cloud doc is stale/empty.
+      byId.set(item.id, item);
       continue;
     }
     const localTs = parseTs(item.updatedAt);
