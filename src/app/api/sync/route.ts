@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 
-const DEFAULT_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019db9ae-4b13-77bd-b5d6-7b092e472a16";
+const DEFAULT_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019dce45-3c11-71f2-9c58-266d7a471195";
 const BLOB_URL = (process.env.SYNC_BLOB_URL?.trim() || DEFAULT_BLOB_URL);
 
 const EMPTY_DOC = {
   syncedAt: "1970-01-01T00:00:00.000Z",
-  foods: [],
-  recipes: [],
-  recipeIngredients: [],
-  mealEntries: [],
-  dayLogs: [],
-  dayTargets: [],
-  weightLogs: [],
-  profile: null,
-  deleted: {},
+  shared: {
+    foods: [],
+    recipes: [],
+    recipeIngredients: [],
+    deleted: {},
+  },
+  users: {},
 };
 
 export const runtime = "edge";

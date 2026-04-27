@@ -33,7 +33,7 @@ export default function AccountPage() {
     event.preventDefault();
     const next = loginAccount(login, password);
     if (!next) {
-      setMessage("Неверные данные. Для обычного пользователя пароль = логин. Для админа: admin/admin.");
+      setMessage("Неверные данные. Аккаунт должен быть заранее добавлен в MANUAL_ACCOUNTS.");
       return;
     }
     await refreshAfterAccountChange(next);
@@ -58,6 +58,9 @@ export default function AccountPage() {
         </p>
         <p className="text-xs text-[#9db0c8]">
           Общие данные (продукты и блюда) обновляет только админ-аккаунт. Остальные данные у каждого аккаунта свои.
+        </p>
+        <p className="text-xs text-[#9db0c8]">
+          Новые пользователи добавляются вручную в <code>src/lib/account/local-account.ts</code> в массиве <code>MANUAL_ACCOUNTS</code>.
         </p>
       </div>
 

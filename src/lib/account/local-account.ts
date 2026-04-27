@@ -5,6 +5,16 @@ const ACTIVE_ACCOUNT_KEY = "mydiet_active_account_v1";
 export const ADMIN_ACCOUNT_LOGIN = "admin";
 export const ADMIN_ACCOUNT_PASSWORD = "admin";
 
+export const MANUAL_ACCOUNTS: ReadonlyArray<{
+  username: string;
+  password: string;
+  isAdmin?: boolean;
+}> = [
+  { username: ADMIN_ACCOUNT_LOGIN, password: ADMIN_ACCOUNT_PASSWORD, isAdmin: true },
+  // Add new users here manually:
+  // { username: "anna", password: "anna123" },
+];
+
 export type ActiveAccount = {
   username: string;
   isAdmin: boolean;
@@ -17,7 +27,7 @@ function normalizeUsername(username: string): string {
 export function validateAccountCredentials(username: string, password: string): boolean {
   const normalized = normalizeUsername(username);
   if (!normalized || !password) return false;
-  return normalized === ADMIN_ACCOUNT_LOGIN && password === ADMIN_ACCOUNT_PASSWORD;
+  return MANUAL_ACCOUNTS.some((account) => normalizeUsername(account.username) === normalized && account.password === password);
 }
 
 export function getActiveAccount(): ActiveAccount {
@@ -45,12 +55,11 @@ export function getActiveAccountId(): string {
 export function loginAccount(username: string, password: string): ActiveAccount | null {
   const normalized = normalizeUsername(username);
   if (!normalized || !password) return null;
-  const isAdmin = validateAccountCredentials(normalized, password);
-  if (!isAdmin && password !== normalized) {
-    // For regular users, lightweight local auth: password must equal login.
+  const found = MANUAL_ACCOUNTS.find((account) => normalizeUsername(account.username) === normalized && account.password === password);
+  if (!found) {
     return null;
   }
-  const next: ActiveAccount = { username: normalized, isAdmin };
+  const next: ActiveAccount = { username: normalized, isAdmin: Boolean(found.isAdmin) };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(ACTIVE_ACCOUNT_KEY, JSON.stringify(next));
   }
