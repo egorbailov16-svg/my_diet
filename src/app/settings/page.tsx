@@ -36,12 +36,28 @@ function toInput(value: number | undefined): string {
   return value === undefined ? "" : String(value);
 }
 
+function makeDefaultTarget(dayType: DayTarget["dayType"], timestamp: string): DayTarget {
+  return {
+    id: dayType,
+    dayType,
+    kcalMin: 0,
+    kcalMax: 0,
+    proteinTarget: 0,
+    fatMin: 0,
+    fatMax: 0,
+    carbsMin: 0,
+    carbsMax: 0,
+    updatedAt: timestamp,
+  };
+}
+
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [targets, setTargets] = useState<DayTarget[]>([]);
   const [adminUnlocked, setAdminUnlockedState] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
   const [adminLogin, setAdminLogin] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
@@ -121,18 +137,25 @@ export default function SettingsPage() {
     });
   }, []);
 
-  const normalTarget = useMemo(() => targets.find((item) => item.dayType === "normal"), [targets]);
-  const strengthTarget = useMemo(() => targets.find((item) => item.dayType === "strength"), [targets]);
+  const normalTarget = useMemo(
+    () => targets.find((item) => item.dayType === "normal") ?? makeDefaultTarget("normal", nowISO()),
+    [targets],
+  );
+  const strengthTarget = useMemo(
+    () => targets.find((item) => item.dayType === "strength") ?? makeDefaultTarget("strength", nowISO()),
+    [targets],
+  );
 
   async function saveSettings(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!profile || !normalTarget || !strengthTarget) return;
-
     setIsSaving(true);
+    setSaveMessage("");
     const timestamp = nowISO();
 
     const updatedProfile: Profile = {
-      ...profile,
+      id: "profile",
+      name: profile?.name ?? "User",
+      createdAt: profile?.createdAt ?? timestamp,
       heightCm: parseNumber(profileForm.heightCm) || undefined,
       currentWeightKg: parseNumber(profileForm.currentWeightKg) || undefined,
       goalWeightKg: parseNumber(profileForm.goalWeightKg) || undefined,
@@ -167,7 +190,8 @@ export default function SettingsPage() {
     await dayTargetRepo.upsertMany([updatedNormal, updatedStrength]);
 
     setProfile(updatedProfile);
-    setTargets((prev) => prev.map((item) => (item.dayType === "normal" ? updatedNormal : item.dayType === "strength" ? updatedStrength : item)));
+    setTargets([updatedNormal, updatedStrength]);
+    setSaveMessage("Настройки сохранены.");
     setIsSaving(false);
   }
 
@@ -260,6 +284,7 @@ export default function SettingsPage() {
         >
           {isSaving ? "Сохранение..." : "Сохранить настройки"}
         </button>
+        {saveMessage ? <p className="text-xs text-[#9db0c8]">{saveMessage}</p> : null}
       </form>
     </section>
   );
