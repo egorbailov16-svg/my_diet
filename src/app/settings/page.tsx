@@ -10,6 +10,7 @@ type ProfileForm = {
   heightCm: string;
   currentWeightKg: string;
   goalWeightKg: string;
+  dailyActivityKcal: string;
 };
 
 type TargetForm = {
@@ -58,6 +59,10 @@ export default function SettingsPage() {
   const [targets, setTargets] = useState<DayTarget[]>([]);
   const [adminUnlocked, setAdminUnlockedState] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [aiTargetsState, setAiTargetsState] = useState<{
+    status: "idle" | "loading" | "success" | "fallback" | "error";
+    message?: string;
+  }>({ status: "idle" });
   const [adminLogin, setAdminLogin] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
@@ -66,6 +71,7 @@ export default function SettingsPage() {
     heightCm: "",
     currentWeightKg: "",
     goalWeightKg: "",
+    dailyActivityKcal: "",
   });
   const [normalTargetForm, setNormalTargetForm] = useState<TargetForm>({
     kcalMin: "",
@@ -96,6 +102,7 @@ export default function SettingsPage() {
           heightCm: toInput(loadedProfile.heightCm),
           currentWeightKg: toInput(loadedProfile.currentWeightKg),
           goalWeightKg: toInput(loadedProfile.goalWeightKg),
+          dailyActivityKcal: toInput(loadedProfile.dailyActivityKcal),
         });
       }
       setAdminUnlockedState(isAdminUnlocked());
@@ -159,6 +166,7 @@ export default function SettingsPage() {
       heightCm: parseNumber(profileForm.heightCm) || undefined,
       currentWeightKg: parseNumber(profileForm.currentWeightKg) || undefined,
       goalWeightKg: parseNumber(profileForm.goalWeightKg) || undefined,
+      dailyActivityKcal: parseNumber(profileForm.dailyActivityKcal) || undefined,
       updatedAt: timestamp,
     };
 
@@ -193,6 +201,72 @@ export default function SettingsPage() {
     setTargets([updatedNormal, updatedStrength]);
     setSaveMessage("Настройки сохранены.");
     setIsSaving(false);
+  }
+
+  async function suggestTargetsWithAi() {
+    const heightCm = parseNumber(profileForm.heightCm);
+    const currentWeightKg = parseNumber(profileForm.currentWeightKg);
+    const goalWeightKg = parseNumber(profileForm.goalWeightKg);
+    const activityKcal = parseNumber(profileForm.dailyActivityKcal);
+    if (heightCm <= 0 || currentWeightKg <= 0 || goalWeightKg <= 0) {
+      setAiTargetsState({ status: "error", message: "Заполни рост, текущий вес и целевой вес." });
+      return;
+    }
+    setAiTargetsState({ status: "loading" });
+    try {
+      const response = await fetch("/api/ai/suggest-targets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          heightCm,
+          currentWeightKg,
+          goalWeightKg,
+          activityKcal,
+        }),
+      });
+      const json = (await response.json().catch(() => null)) as
+        | {
+            ok: boolean;
+            targets?: {
+              normal: TargetForm;
+              strength: TargetForm;
+              summary?: string;
+            };
+            fallbackReason?: string;
+          }
+        | null;
+      if (!response.ok || !json?.ok || !json.targets) {
+        setAiTargetsState({ status: "error", message: "Не удалось рассчитать цели через AI." });
+        return;
+      }
+
+      setNormalTargetForm({
+        kcalMin: String(json.targets.normal.kcalMin),
+        kcalMax: String(json.targets.normal.kcalMax),
+        proteinTarget: String(json.targets.normal.proteinTarget),
+        fatMin: String(json.targets.normal.fatMin),
+        fatMax: String(json.targets.normal.fatMax),
+        carbsMin: String(json.targets.normal.carbsMin),
+        carbsMax: String(json.targets.normal.carbsMax),
+      });
+      setStrengthTargetForm({
+        kcalMin: String(json.targets.strength.kcalMin),
+        kcalMax: String(json.targets.strength.kcalMax),
+        proteinTarget: String(json.targets.strength.proteinTarget),
+        fatMin: String(json.targets.strength.fatMin),
+        fatMax: String(json.targets.strength.fatMax),
+        carbsMin: String(json.targets.strength.carbsMin),
+        carbsMax: String(json.targets.strength.carbsMax),
+      });
+
+      if (json.fallbackReason) {
+        setAiTargetsState({ status: "fallback", message: `Сработал локальный расчет: ${json.fallbackReason}` });
+      } else {
+        setAiTargetsState({ status: "success", message: json.targets.summary ?? "Цели рассчитаны через AI." });
+      }
+    } catch (error) {
+      setAiTargetsState({ status: "error", message: error instanceof Error ? error.message : "Ошибка сети" });
+    }
   }
 
   function lockAdminMode() {
@@ -243,6 +317,24 @@ export default function SettingsPage() {
               value={profileForm.goalWeightKg}
               onChange={(value) => setProfileForm((prev) => ({ ...prev, goalWeightKg: value }))}
             />
+            <Field
+              label="Дневная активность, ккал"
+              value={profileForm.dailyActivityKcal}
+              onChange={(value) => setProfileForm((prev) => ({ ...prev, dailyActivityKcal: value }))}
+            />
+            <button
+              type="button"
+              onClick={suggestTargetsWithAi}
+              disabled={aiTargetsState.status === "loading"}
+              className="h-11 w-full rounded-2xl accent-btn text-sm font-semibold disabled:opacity-40"
+            >
+              {aiTargetsState.status === "loading" ? "AI рассчитывает..." : "Заполнить КБЖУ через AI"}
+            </button>
+            {aiTargetsState.status !== "idle" ? (
+              <p className={`text-xs ${aiTargetsState.status === "error" ? "text-[#ff8095]" : "text-[#9db0c8]"}`}>
+                {aiTargetsState.message}
+              </p>
+            ) : null}
           </div>
         </div>
 

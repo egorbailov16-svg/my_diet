@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartNoAxesColumn, Home, Plus, Salad, UtensilsCrossed, User } from "lucide-react";
+import { ChartNoAxesColumn, Home, Plus, Salad, UtensilsCrossed } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Сегодня", icon: Home },
@@ -10,7 +10,6 @@ const navItems = [
   { href: "/add-entry", label: "Добавить", icon: Plus, center: true },
   { href: "/foods", label: "Продукты", icon: Salad },
   { href: "/recipes", label: "Блюда", icon: UtensilsCrossed },
-  { href: "/account", label: "Аккаунт", icon: User },
 ];
 
 export function MobileBottomNav() {

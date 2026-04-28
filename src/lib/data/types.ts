@@ -31,6 +31,7 @@ export type Profile = {
   heightCm?: number;
   currentWeightKg?: number;
   goalWeightKg?: number;
+  dailyActivityKcal?: number;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 };
