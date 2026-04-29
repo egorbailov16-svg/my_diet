@@ -28,6 +28,12 @@ export type AnalyzeDayInput = {
   consumed: { kcal: number; protein: number; fat: number; carbs: number };
   activeKcal: number;
   netKcal: number;
+  // Profile snapshot used to determine the user's goal.
+  // (We intentionally keep these optional because older calls may not provide them.)
+  heightCm?: number;
+  currentWeightKg?: number | null;
+  goalWeightKg?: number | null;
+  plannedActivityKcal?: number | null;
   target?: {
     kcalMin: number;
     kcalMax: number;

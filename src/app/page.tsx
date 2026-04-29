@@ -14,6 +14,7 @@ import {
   foodRepo,
   forceSync,
   mealEntryRepo,
+  profileRepo,
   type ClosedDayArchive,
   type DayStatus,
   normalizeNutrientNormKey,
@@ -650,6 +651,7 @@ export default function Home() {
       setCloseState({ status: "ai-loading", message: "Запрашиваю AI-анализ..." });
 
       try {
+      const profile = await profileRepo.get().catch(() => null);
       const microNorms: Record<string, number> = {};
       for (const key of Object.keys({ ...snapshot.micronutrientsTotal, ...snapshot.vitaminsTotal })) {
         const norm = DAILY_MICRO_NORMS[normalizeNutrientNormKey(key)];
@@ -683,6 +685,10 @@ export default function Home() {
           amountG: item.amountG,
           nutrients: item.nutrients,
         })),
+        heightCm: profile?.heightCm,
+        currentWeightKg: profile?.currentWeightKg ?? archive.weightKg ?? null,
+        goalWeightKg: profile?.goalWeightKg,
+        plannedActivityKcal: profile?.dailyActivityKcal,
         weightKg: archive.weightKg ?? null,
       });
 
@@ -773,6 +779,7 @@ export default function Home() {
   async function rerunAiAnalysisForArchive(archive: ClosedDayArchive) {
     setCloseState({ status: "ai-loading", message: `Перезапускаю AI-анализ за ${archive.date}...` });
     try {
+      const profile = await profileRepo.get().catch(() => null);
       const microNorms: Record<string, number> = {};
       for (const key of Object.keys({ ...archive.micronutrientsTotal, ...archive.vitaminsTotal })) {
         const norm = DAILY_MICRO_NORMS[normalizeNutrientNormKey(key)];
@@ -795,6 +802,10 @@ export default function Home() {
           amountG: item.amountG,
           nutrients: item.nutrients,
         })),
+        heightCm: profile?.heightCm,
+        currentWeightKg: profile?.currentWeightKg ?? archive.weightKg ?? null,
+        goalWeightKg: profile?.goalWeightKg,
+        plannedActivityKcal: profile?.dailyActivityKcal,
         weightKg: archive.weightKg ?? null,
       });
       if (aiResult.ok && aiResult.analysis) {
