@@ -12,6 +12,7 @@ import {
   dayLogRepo,
   dayTargetRepo,
   foodRepo,
+  forceSync,
   mealEntryRepo,
   type ClosedDayArchive,
   type DayStatus,
@@ -119,6 +120,7 @@ export default function Home() {
   const [editingSourceType, setEditingSourceType] = useState<MealEntry["sourceType"]>("food");
   const [editingSourceId, setEditingSourceId] = useState("");
   const [editingWeightInput, setEditingWeightInput] = useState("");
+  const [activeKcalInput, setActiveKcalInput] = useState("0");
   const [archives, setArchives] = useState<ClosedDayArchive[]>([]);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [weights, setWeights] = useState<WeightLog[]>([]);
@@ -208,6 +210,7 @@ export default function Home() {
       setWeights(weightLogs);
       const todaysWeight = weightLogs.find((item) => item.date === focusedDate);
       setWeightInput(todaysWeight ? String(todaysWeight.weightKg) : "");
+      setActiveKcalInput(String(Math.max(0, Math.round(safeDayLog.activeKcal ?? 0))));
       if (!isViewingToday && archivesList.some((item) => item.date === focusedDate)) {
         setIsArchiveOpen(true);
       }
@@ -223,9 +226,22 @@ export default function Home() {
       loadDayData(false).catch((error: unknown) => console.error("Background day sync failed", error));
     }, 15000);
 
+    const refreshOnFocus = () => {
+      forceSync()
+        .then(() => loadDayData(false))
+        .catch((error: unknown) => console.error("Focus day sync failed", error));
+    };
+    const onVisibility = () => {
+      if (!document.hidden) refreshOnFocus();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [focusedDate]);
 
@@ -399,7 +415,13 @@ export default function Home() {
       updatedAt: nowISO(),
     };
     setFocusedLog(updated);
+    setActiveKcalInput(String(safeValue));
     await dayLogRepo.upsert(updated);
+  }
+
+  async function commitActiveKcalInput() {
+    const parsed = Number(activeKcalInput.replace(",", "."));
+    await updateActiveKcal(Number.isFinite(parsed) ? parsed : 0);
   }
 
   async function saveWeightForFocusedDay() {
@@ -530,6 +552,7 @@ export default function Home() {
 
   async function finishDay() {
     if (!focusedLog || !dayTotals || closeRequestInFlightRef.current) return;
+    await commitActiveKcalInput();
     closeRequestInFlightRef.current = true;
     setCloseState({ status: "saving", message: "Сохраняю snapshot дня..." });
     try {
@@ -1085,7 +1108,18 @@ export default function Home() {
         <div className="mt-3 space-y-3">
           <div>
             <label htmlFor="active-kcal" className="mb-1.5 block text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Active calories</label>
-            <input id="active-kcal" type="number" min={0} value={focusedLog.activeKcal} onChange={(event) => updateActiveKcal(Number(event.target.value))} className="h-12 w-full rounded-lg px-3 text-base outline-none" />
+            <input
+              id="active-kcal"
+              type="text"
+              inputMode="numeric"
+              value={activeKcalInput}
+              onChange={(event) => setActiveKcalInput(event.target.value.replace(/[^\d]/g, ""))}
+              onBlur={() => {
+                commitActiveKcalInput().catch((error: unknown) => console.error("Failed to save active kcal", error));
+              }}
+              placeholder="0"
+              className="h-12 w-full rounded-lg px-3 text-base outline-none"
+            />
           </div>
           <div>
             <label htmlFor="day-weight" className="mb-1.5 block text-xs uppercase tracking-[0.11em] text-[#9db0c8]">Вес утром, кг</label>
