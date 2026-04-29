@@ -14,6 +14,7 @@ import {
   foodRepo,
   forceSync,
   mealEntryRepo,
+  pushNow,
   profileRepo,
   type ClosedDayArchive,
   type DayStatus,
@@ -210,9 +211,9 @@ export default function Home() {
 
       const safeDayLog: DayLog = dayLog ?? fallbackLog;
 
-      if (!dayLog && isInitial && isToday) {
-        await dayLogRepo.upsert(safeDayLog);
-      }
+      // Не создаём пустой DayLog при первом открытии: при сбоях sync это может
+      // перезаписать актуальные данные с другого устройства. DayLog создаётся
+      // при реальном действии пользователя (добавление еды/активности/закрытие дня).
 
       setFocusedLog(safeDayLog);
       setTargets(dayTargets);
@@ -648,6 +649,13 @@ export default function Home() {
       setFocusedLog(updated);
       await dayLogRepo.upsert(updated);
       setArchives((prev) => [archive, ...prev.filter((item) => item.id !== archive.id)]);
+      // Нужен быстрый push, чтобы второе устройство увидело день почти сразу,
+      // а не по debounce таймерам.
+      try {
+        await pushNow();
+      } catch (error) {
+        console.error("pushNow after finishDay failed", error);
+      }
       setCloseState({ status: "ai-loading", message: "Запрашиваю AI-анализ..." });
 
       try {
