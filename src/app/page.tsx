@@ -56,6 +56,16 @@ function formatNumber(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+function formatTimeShort(iso?: string): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 function parseWeight(value: string): number {
   const parsed = Number(value.replace(",", "."));
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
@@ -121,6 +131,9 @@ export default function Home() {
   const [editingSourceId, setEditingSourceId] = useState("");
   const [editingWeightInput, setEditingWeightInput] = useState("");
   const [activeKcalInput, setActiveKcalInput] = useState("0");
+  const [syncUi, setSyncUi] = useState<{ status: "idle" | "syncing" | "error"; lastAt?: string; error?: string }>({
+    status: "idle",
+  });
   const [archives, setArchives] = useState<ClosedDayArchive[]>([]);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [weights, setWeights] = useState<WeightLog[]>([]);
@@ -217,19 +230,30 @@ export default function Home() {
       if (isInitial) setIsLoading(false);
     }
 
-    loadDayData(true).catch((error: unknown) => {
-      console.error("Failed to load day data", error);
+    async function syncAndLoad(isInitial: boolean) {
+      setSyncUi({ status: "syncing" });
+      try {
+        await forceSync();
+        setSyncUi({ status: "idle", lastAt: new Date().toISOString() });
+      } catch (error) {
+        console.error("Sync before day load failed", error);
+        setSyncUi({ status: "error", error: error instanceof Error ? error.message : "sync failed" });
+      }
+      await loadDayData(isInitial);
+    }
+
+    syncAndLoad(true).catch((error: unknown) => {
+      console.error("Failed to sync+load day data", error);
       setIsLoading(false);
+      setSyncUi({ status: "error", error: error instanceof Error ? error.message : "unknown error" });
     });
 
     const intervalId = window.setInterval(() => {
-      loadDayData(false).catch((error: unknown) => console.error("Background day sync failed", error));
+      void syncAndLoad(false).catch((error: unknown) => console.error("Background sync+load failed", error));
     }, 15000);
 
     const refreshOnFocus = () => {
-      forceSync()
-        .then(() => loadDayData(false))
-        .catch((error: unknown) => console.error("Focus day sync failed", error));
+      void syncAndLoad(false).catch((error: unknown) => console.error("Focus sync+load failed", error));
     };
     const onVisibility = () => {
       if (!document.hidden) refreshOnFocus();
@@ -884,13 +908,24 @@ export default function Home() {
               <h1 className="screen-title mt-1">{isViewingToday ? "Сегодня" : "Редактирование дня"}</h1>
             </div>
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5">
-            <Link href="/settings" className="glass-icon-btn" aria-label="Настройки">
-              <CalendarDays size={16} />
-            </Link>
-            <Link href="/account" className="glass-icon-btn" aria-label="Аккаунт">
-              <User size={16} />
-            </Link>
+          <div className="mt-0.5 flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1.5">
+              <Link href="/settings" className="glass-icon-btn" aria-label="Настройки">
+                <CalendarDays size={16} />
+              </Link>
+              <Link href="/account" className="glass-icon-btn" aria-label="Аккаунт">
+                <User size={16} />
+              </Link>
+            </div>
+            <div className="text-[10px] leading-none text-[#9db0c8]">
+              {syncUi.status === "syncing"
+                ? "Синхронизирую..."
+                : syncUi.status === "error"
+                  ? "Синк: ошибка"
+                  : syncUi.lastAt
+                    ? `Синк: ${formatTimeShort(syncUi.lastAt)}`
+                    : "Синк: —"}
+            </div>
           </div>
         </div>
         {!isViewingToday ? (
