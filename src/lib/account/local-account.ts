@@ -11,8 +11,10 @@ export const MANUAL_ACCOUNTS: ReadonlyArray<{
   isAdmin?: boolean;
 }> = [
   { username: ADMIN_ACCOUNT_LOGIN, password: ADMIN_ACCOUNT_PASSWORD, isAdmin: true },
-  // Add new users here manually:
-  // { username: "anna", password: "anna123" },
+  { username: "Polina", password: "polya07", isAdmin: false },
+  { username: "George", password: "afentus1337", isAdmin: false },
+  { username: "George'sWife", password: "wife1337", isAdmin: false },
+  { username: "Nina", password: "nina1607", isAdmin: false },
 ];
 
 export type ActiveAccount = {
