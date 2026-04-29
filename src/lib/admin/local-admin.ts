@@ -2,14 +2,15 @@
 
 import {
   ADMIN_ACCOUNT_LOGIN,
-  ADMIN_ACCOUNT_PASSWORD,
   getActiveAccount,
-  loginAccount,
   logoutAccount,
+  setActiveAccount,
 } from "@/lib/account/local-account";
 
 export function validateAdminCredentials(login: string, password: string): boolean {
-  return login.trim().toLowerCase() === ADMIN_ACCOUNT_LOGIN && password === ADMIN_ACCOUNT_PASSWORD;
+  // Пароль администратора проверяется сервером в /api/account/login.
+  // Здесь допускаем локальное включение режима только для уже активного admin-аккаунта.
+  return login.trim().toLowerCase() === ADMIN_ACCOUNT_LOGIN && password.length > 0 && getActiveAccount().isAdmin;
 }
 
 export function isAdminUnlocked(): boolean {
@@ -18,7 +19,10 @@ export function isAdminUnlocked(): boolean {
 
 export function setAdminUnlocked(unlocked: boolean) {
   if (unlocked) {
-    loginAccount(ADMIN_ACCOUNT_LOGIN, ADMIN_ACCOUNT_PASSWORD);
+    const account = getActiveAccount();
+    if (account.username === ADMIN_ACCOUNT_LOGIN && account.isAdmin) {
+      setActiveAccount(account);
+    }
   } else {
     logoutAccount();
   }

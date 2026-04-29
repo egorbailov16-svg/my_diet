@@ -1,7 +1,7 @@
 "use client";
 
 import { forceSync } from "@/lib/data/cloud-sync";
-import { getActiveAccount, loginAccount, logoutAccount, type ActiveAccount } from "@/lib/account/local-account";
+import { getActiveAccount, logoutAccount, setActiveAccount, type ActiveAccount } from "@/lib/account/local-account";
 import { useEffect, useState } from "react";
 
 export default function AccountPage() {
@@ -31,16 +31,23 @@ export default function AccountPage() {
 
   async function onLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const next = loginAccount(login, password);
-    if (!next) {
-      setMessage("Неверные данные. Аккаунт не найден.");
+    const response = await fetch("/api/account/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: login, password }),
+    });
+    const json = (await response.json().catch(() => null)) as { ok?: boolean; account?: ActiveAccount; error?: string } | null;
+    if (!response.ok || !json?.ok || !json.account) {
+      setMessage(json?.error ?? "Неверные данные. Аккаунт не найден.");
       return;
     }
+    const next = setActiveAccount(json.account);
     await refreshAfterAccountChange(next);
   }
 
   async function onLogout() {
     logoutAccount();
+    await fetch("/api/account/logout", { method: "POST" }).catch(() => null);
     await refreshAfterAccountChange({ username: "guest", isAdmin: false });
   }
 

@@ -3,19 +3,6 @@
 const ACTIVE_ACCOUNT_KEY = "mydiet_active_account_v1";
 
 export const ADMIN_ACCOUNT_LOGIN = "admin";
-export const ADMIN_ACCOUNT_PASSWORD = "admin";
-
-export const MANUAL_ACCOUNTS: ReadonlyArray<{
-  username: string;
-  password: string;
-  isAdmin?: boolean;
-}> = [
-  { username: ADMIN_ACCOUNT_LOGIN, password: ADMIN_ACCOUNT_PASSWORD, isAdmin: true },
-  { username: "Polina", password: "polya07", isAdmin: false },
-  { username: "George", password: "afentus1337", isAdmin: false },
-  { username: "George'sWife", password: "wife1337", isAdmin: false },
-  { username: "Nina", password: "nina1607", isAdmin: false },
-];
 
 export type ActiveAccount = {
   username: string;
@@ -24,12 +11,6 @@ export type ActiveAccount = {
 
 function normalizeUsername(username: string): string {
   return username.trim().toLowerCase();
-}
-
-export function validateAccountCredentials(username: string, password: string): boolean {
-  const normalized = normalizeUsername(username);
-  if (!normalized || !password) return false;
-  return MANUAL_ACCOUNTS.some((account) => normalizeUsername(account.username) === normalized && account.password === password);
 }
 
 export function getActiveAccount(): ActiveAccount {
@@ -54,14 +35,11 @@ export function getActiveAccountId(): string {
   return getActiveAccount().username;
 }
 
-export function loginAccount(username: string, password: string): ActiveAccount | null {
-  const normalized = normalizeUsername(username);
-  if (!normalized || !password) return null;
-  const found = MANUAL_ACCOUNTS.find((account) => normalizeUsername(account.username) === normalized && account.password === password);
-  if (!found) {
-    return null;
-  }
-  const next: ActiveAccount = { username: normalized, isAdmin: Boolean(found.isAdmin) };
+export function setActiveAccount(account: ActiveAccount): ActiveAccount {
+  const next: ActiveAccount = {
+    username: normalizeUsername(account.username) || "guest",
+    isAdmin: Boolean(account.isAdmin),
+  };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(ACTIVE_ACCOUNT_KEY, JSON.stringify(next));
   }

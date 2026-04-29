@@ -13,6 +13,7 @@ import type {
 
 const DEFAULT_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019dce45-3c11-71f2-9c58-266d7a471195";
 const BLOB_URL = (process.env.SYNC_BLOB_URL?.trim() || DEFAULT_BLOB_URL);
+const SYNC_COOKIE_NAME = "mydiet_sync_session";
 
 const EMPTY_DOC = {
   syncedAt: "1970-01-01T00:00:00.000Z",
@@ -178,7 +179,33 @@ function mergeCloudDocs(remoteRaw: unknown, incomingRaw: unknown): CloudDoc {
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+function parseCookieValue(rawCookieHeader: string | null, name: string): string | null {
+  if (!rawCookieHeader) return null;
+  const parts = rawCookieHeader.split(";").map((item) => item.trim());
+  for (const part of parts) {
+    const idx = part.indexOf("=");
+    if (idx <= 0) continue;
+    const key = part.slice(0, idx).trim();
+    if (key !== name) continue;
+    return decodeURIComponent(part.slice(idx + 1));
+  }
+  return null;
+}
+
+function isSyncAuthorized(request: Request): boolean {
+  const token = process.env.SYNC_API_TOKEN?.trim();
+  if (!token) {
+    console.error("SYNC_API_TOKEN is not configured");
+    return false;
+  }
+  const cookieToken = parseCookieValue(request.headers.get("cookie"), SYNC_COOKIE_NAME);
+  return cookieToken === token;
+}
+
+export async function GET(request: Request) {
+  if (!isSyncAuthorized(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const response = await fetch(BLOB_URL, {
       method: "GET",
@@ -206,6 +233,9 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  if (!isSyncAuthorized(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const text = await request.text();
     let incomingDoc: unknown = {};
